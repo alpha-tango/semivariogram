@@ -5,7 +5,6 @@ import math
 import matplotlib.pyplot as plt
 from typing import Union, List
 
-import scripts.berea as berea
 import scripts.models as models
 import scripts.stats as stats
 
