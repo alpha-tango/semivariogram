@@ -1,10 +1,129 @@
 """
-TODO: make all these things class based to reduce duplicate code
+SemivarianceModel is the general model class that the specific models
+(Spherical, Gaussian, etc.) inherit from.
+Each specific model has its own class.
+
+This is a little different (worse, probably) from normal model implementations,
+such as Sklearn, in that I include the dataframe in the model. 
 """
 
 import duckdb
 import numpy as np
 from sklearn.isotonic import isotonic_regression
+
+
+#############################
+# Functions
+#############################
+
+def get_model(model):
+    return SUPPORTED_MODELS[model]
+
+#############################
+# Classes
+#############################
+
+
+class SemivarianceModel:
+    """
+    Fit a model to (h, semivariance) pairs within the range specified.
+    Takes in a dataframe (df) with the following columns:
+    - `h`: the lag distance
+    - `semivariance`: the semivariance
+    - `n`: number/count of points represented by that (h, semivariance) pair. 
+           If using the raw data, this could be one. If using binned data,
+           this would be > 1.
+    You must also pass in a range (`a` in the De Marsily text) within which you 
+    want to fit the data.
+    """
+
+    def __init__(self, data_df, fit_range):
+        # set the params
+        self.data = data_df
+        self.a = fit_range
+
+        # get the sill, bc it's needed for almost every model
+        # and we only want to calculate it once
+        self.sill = self.get_sill(data_df)
+        self.name = self.get_name()
+        
+        # TODO: add a column validity check above the sill setter
+
+    def get_name(self):
+        """
+        Name of the model -- this is a placeholder for specific 
+        model classes
+        """
+        pass
+
+    def get_sill(self, data_df):
+        """
+        Calculate the sill from the data.
+        """
+        sill_select = f"""
+        SELECT
+            AVG(semivariance) AS sill
+        FROM data_df
+        WHERE h >= {self.a}
+        """
+
+        return duckdb.sql(sill_select).fetchnumpy()['sill'][0]
+
+    def max_h(self, data_df):
+        """
+        Find the maximum lag in the data
+        """
+        max_lag_select = f"""
+        SELECT
+            MAX(h) as max_h
+        FROM data_df
+        WHERE h >= {self.a}
+        """
+        return duckdb.sql(max_lag_select).fetchnumpy()['max_h'][0]
+
+    def fit_h(self, h):
+        """
+        This is specific to the model, so this is just a placeholder.
+        Comment needed. 
+        `h` is a vector of lags. If no argument is passed, then 
+        the model's data is used.
+        """
+        pass 
+
+    def plottable(self):
+        """
+        Fit a series of `h` values.
+        Returns a dataframe with columns `h` and `semivariance`,
+        with the same number of datapoints as the input h.
+        """
+        plottable_h = np.linspace(0, self.max_h(self.data), 100)
+        return {
+            'h': plottable_h,
+            'semivariance': self.fit_h(plottable_h)
+        }
+
+
+class ExponentialModel(SemivarianceModel):
+    """
+    Exponential model that inherits from the general Semivariance Model
+    functions.
+    """
+
+    def fit_h(self, h):
+        """
+        De Marsily:
+        w * ( 1 - exp(-h/a))
+        Vectorized implementation.
+        Default is to use the model data, but you can pass in 
+        any vector of distances. 
+        """
+        return self.sill * (1 - np.exp( -h / self.a))
+
+    def get_name(self):
+        return 'Exponential'
+
+
+
 
 def get_fit_info(fit_dataframe, h_col, gamma_col, fit_range):
     """
@@ -31,9 +150,9 @@ def fit_model(model_type, fit_dataframe, h_col, gamma_col, fit_range):
     fit_range is a float.
     """
 
-    ##################################
+    ######################################
     # get needed info for fitting models
-    ##################################
+    ######################################
 
     fit_info = get_fit_info(fit_dataframe, h_col, gamma_col, fit_range)
     
@@ -100,8 +219,15 @@ def fit_model(model_type, fit_dataframe, h_col, gamma_col, fit_range):
     else:
         print("bad outcome")
 
-
     return {'fit_x': fit_x,
             'fit_y': fit_y,
             'sill': sill,
             'range': fit_range}
+
+#############################
+# variables
+#############################
+
+SUPPORTED_MODELS = {
+    'exponential': ExponentialModel
+}
