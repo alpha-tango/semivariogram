@@ -9,6 +9,8 @@ import scripts.models as models
 import scripts.plots as plots
 import scripts.stats as stats
 
+import config.berea
+
 
 def main():
     ###################################
@@ -111,7 +113,7 @@ def main():
     print(f"Got {pair_count} pairs, expected {expected_pair_count}")
 
     # find lag distance for each pair
-    pair_df['euclidean_distance'] = stats.euclidean_distance_2d(
+    pair_df['h'] = stats.euclidean_distance_2d(
                                         pair_df['near_x_mm'],
                                         pair_df['far_x_mm'],
                                         pair_df['near_y_mm'],
@@ -161,7 +163,7 @@ def main():
 
         # Plot distances vs semivariances
         fig, ax = plt.subplots()
-        ax.scatter(pair_df['euclidean_distance'], pair_df['semivariance'], s=0.2)
+        ax.scatter(pair_df['h'], pair_df['semivariance'], s=0.2)
         ax.set_title("Semivariance by lag distance (omnidirectional)")
         ax.set_xlabel("lag distance (mm)")
         ax.set_ylabel("semivariance")
@@ -182,7 +184,7 @@ def main():
 
         # Plot a histogram of distances vs. number of points at that distance
         fig, ax = plt.subplots()
-        ax.hist(pair_df['euclidean_distance'])
+        ax.hist(pair_df['h'])
         ax.set_title("Count of sample pairs by lag distance (omnidirectional)")
         ax.set_xlabel("lag distance (mm)")
         ax.set_ylabel("count of pairs")
@@ -209,17 +211,17 @@ def main():
         binner = f"""
         WITH bins AS (
             SELECT
-                euclidean_distance AS lag_distance,
+                h AS lag_distance,
                 semivariance,
                 {options.bin_width} AS bin_width,
-                CEIL(euclidean_distance / {options.bin_width}) AS bin
+                CEIL(h / {options.bin_width}) AS bin
             FROM pair_df
-            ORDER BY euclidean_distance ASC
+            ORDER BY h ASC
         )
 
         SELECT
-            AVG(lag_distance) AS avg_lag_distance,
-            AVG(semivariance) AS avg_semivariance,
+            AVG(lag_distance) AS h,
+            AVG(semivariance) AS semivariance,
             COUNT() AS n
         FROM bins
         GROUP BY bin
@@ -233,7 +235,7 @@ def main():
         print(options.bin_max)
 
         # calculate max lag distance in the pair dataset
-        max_lag = pair_df['euclidean_distance'].max()
+        max_lag = pair_df['h'].max()
 
         # mapping function for binning
         def binner(x):
@@ -248,14 +250,14 @@ def main():
             return max_lag
 
         # map each pair to a bin max
-        pair_df['bin'] = pair_df['euclidean_distance'].map(binner)
+        pair_df['bin'] = pair_df['h'].map(binner)
         print(pair_df.head(20))
         
         # use DuckDB query to calculate per-bin average lag and semivariance
         binner = f"""
         SELECT
-            AVG(euclidean_distance) AS avg_lag_distance,
-            AVG(semivariance) AS avg_semivariance,
+            AVG(h) AS h,
+            AVG(semivariance) AS semivariance,
             COUNT() AS n
         FROM pair_df
         GROUP BY bin
@@ -271,16 +273,16 @@ def main():
         binner = f"""
             WITH bins AS (
                 SELECT
-                    euclidean_distance AS lag_distance,
+                    h AS lag_distance,
                     semivariance AS semivariance,
-                    FLOOR(ROW_NUMBER() OVER (ORDER BY euclidean_distance ASC) / {n_bins}) * {n_bins} AS bin
+                    FLOOR(ROW_NUMBER() OVER (ORDER BY h ASC) / {n_bins}) * {n_bins} AS bin
                 FROM 
                     pair_df
             )
 
             SELECT
-                AVG(lag_distance) AS avg_lag_distance,
-                AVG(semivariance) AS avg_semivariance,
+                AVG(lag_distance) AS h,
+                AVG(semivariance) AS semivariance,
                 COUNT() AS n
             FROM
                 bins
@@ -307,42 +309,12 @@ def main():
         # Raw points should be plotted in gray
         # Averages per bins should be plotted in red.
 
-        # start the plot
-        fig, ax = plt.subplots()
+        plot = plots.RawSemivariogram(imname='berea',
+                                        pair_df=pair_df,
+                                        avg_df=bins_df,
+                                        n_bins=n_bins)
+        plot.show_and_save()
 
-        # plot raw semivariance points
-        ax.scatter(pair_df['euclidean_distance'], pair_df['semivariance'], color="lightgray", s=0.2)
-
-        title_str = 'Raw semivariogram'
-        
-        if options.bin_width: 
-            title_str += f': {options.bin_width} mm fixed bins'
-        elif options.bin_max:
-            title_str += ': bin divisions at \n' + ', '.join([str(int(i)) for i in options.bin_max]) + ' mm'
-        else:
-            title_str += f': equal points per bin ({n_bins} bins)'
-        
-        ax.set_title(title_str)
-        ax.set_xlabel('Lag Distance (h)')
-        ax.set_ylabel('Semivariance')
-
-        # plot average semivariance points
-        ax.scatter(bins_df['avg_lag_distance'], bins_df['avg_semivariance'], color='red', marker='x')
-
-        # add in the Ns
-        props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
-        textstr = '\n'.join((
-            f"sample count = {sample_count}",
-            f"pair count = {pair_count}"
-            ))
-
-        # place a text box in upper left in axes coords
-        ax.text(0.05, 0.95, textstr, transform=ax.transAxes, fontsize=10,
-                verticalalignment='top', bbox=props)
-
-
-        plt.show()
-        fig.savefig('images/berea_raw_semivariogram.png')
 
     ###########################################################
     # Plot option 3: semivariogram with a fitted model
@@ -359,12 +331,10 @@ def main():
         if not options.model:
             print("You must specify a model")
             return 1
-            # TODO: this would be so annoying to get to if previous steps take a while
 
         # fit and plot model
         elif options.model in ('spherical', 'exponential', 'gaussian', 'isotonic'):
 
-            to_model_df = bins_df.rename(columns={'avg_lag_distance': 'h', 'avg_semivariance': 'semivariance'})
             model_class = models.get_model(options.model)
             model = model_class(data_df=to_model_df, fit_range=options.range)
             print(model.name)
@@ -376,7 +346,7 @@ def main():
                         model_name=model.name,
                         model_lag=plot_model['h'],
                         model_semivariance=plot_model['semivariance'],
-                        raw_df=to_model_df,
+                        raw_df=bins_df,
                         imname='berea'
                         )
 
@@ -386,9 +356,7 @@ def main():
             print("Model not implemented yet, sorry.")
             return 1
 
-    # TODO: make plots into classes
     # TODO: plots overwrite each other, fix this. 
-    # TODO: make models into classes
 
     return 0
 

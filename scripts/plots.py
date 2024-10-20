@@ -5,9 +5,101 @@ Some column names are hard-coded, lots of fixes needed.
 """
 import matplotlib.pyplot as plt
 
+class RawSemivariogram:
+    """
+    Make a raw semivariogram.
+    - Subplot 0 displays a scatter of raw points, with the averaged points on top
+    - Subplot 1 displays the points per bin
+
+    `avg_df` must have columns ['h', 'semivariance', 'n'] for the binned data.
+        'h': lag distance (avg per bin)
+        'semivariance': semivariance (avg per bin)
+        'n': count of points in that bin
+
+    `pair_df` must have the columns ['h', 'semivariance']
+    """
+
+    def __init__(self, imname, pair_df, avg_df, bin_width=None, bin_max=None, n_bins=None, h_units=None):
+        self.fig, self.ax = plt.subplots(nrows=2, ncols=1, sharex=True)
+        self.avg_df = avg_df
+        self.pair_df = pair_df
+        self.imname = imname
+        self.bin_width = bin_width
+        self.bin_max = bin_max
+        self.n_bins = n_bins
+        self.h_units = h_units
+
+    def full_pair_scatter(self):
+        """
+        Plot the raw pairs
+        """
+        self.ax[0].scatter(self.pair_df['h'], self.pair_df['semivariance'], color="lightgray", s=0.2)
+
+    def bin_scatter(self):
+        """
+        Plot the number of points per bin.
+        """
+        self.ax[1].scatter(self.avg_df['h'], self.avg_df['n'])
+
+    def avg_scatter(self):
+        """
+        Plot the average semivariance points
+        """
+        self.ax[0].scatter(self.avg_df['h'], self.avg_df['semivariance'], color='red', marker='x')
+
+    def labels(self):
+        title_str = 'Raw semivariogram'
+        
+        if self.bin_width: 
+            title_str += f': {self.bin_width} fixed bins'
+        elif self.bin_max:
+            title_str += ': bin divisions at \n' + ', '.join([str(int(i)) for i in self.bin_max])
+        else:
+            title_str += f': equal points per bin ({self.n_bins} bins)'
+
+        self.ax[0].set_title(title_str)
+        self.ax[0].set_xlabel('Lag Distance (h)')
+        self.ax[0].set_ylabel('Semivariance')
+
+    def text_box(self):
+         # add in the Ns
+
+
+        props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
+        textstr = f"pair count = {self.pair_df['h'].count()}"
+
+        # place a text box in upper left in axes coords
+        self.ax[0].text(0.05, 0.95, textstr, transform=self.ax[0].transAxes, fontsize=10,
+                verticalalignment='top', bbox=props)
+
+
+    def _build(self):
+        self.full_pair_scatter()
+        self.avg_scatter()
+        self.bin_scatter()
+        self.labels()
+        self.text_box()
+
+    def show_and_save(self):
+        """
+        Create and pop up the chart, then save. 
+        """
+        self._build()
+        plt.show()
+        self.fig.savefig(f'images/{self.imname}_raw_semivariogram.png')
+
+    def save(self):
+        """
+        Create and save chart without displaying.
+        """
+        self._build()
+        self.fig.savefig(f'images/{self.imname}_raw_semivariogram.png')
+
+
 class Semivariogram:
     """
     All the code to make a semivariogram.
+
     Some column names are hard-coded, so not wholly reusable at this point.
 
     Raw_df must have columns ['h', 'semivariance', 'n'] for the binned data.
