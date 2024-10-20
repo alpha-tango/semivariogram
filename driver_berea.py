@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 from typing import Union, List
 
 import scripts.models as models
+import scripts.plots as plots
 import scripts.stats as stats
 
 
@@ -362,45 +363,24 @@ def main():
 
         # fit and plot model
         elif options.model in ('spherical', 'exponential', 'gaussian', 'isotonic'):
-            model = models.fit_model(options.model, bins_df, 'avg_lag_distance', 'avg_semivariance', options.range)
 
-            # start the plot
-            fig, ax = plt.subplots()
-            ax.set_title(f'Semivariogram: {options.model} model')
-            ax.set_xlabel('Lag Distance (h)')
-            ax.set_ylabel('Semivariance')
+            to_model_df = bins_df.rename(columns={'avg_lag_distance': 'h', 'avg_semivariance': 'semivariance'})
+            model_class = models.get_model(options.model)
+            model = model_class(data_df=to_model_df, fit_range=options.range)
+            print(model.name)
+            plot_model = model.plottable()
 
-            # plot the average semivariance points
-            ax.scatter(bins_df['avg_lag_distance'], bins_df['avg_semivariance'], color='red', marker='x')
+            plot = plots.Semivariogram(
+                        a=options.range,
+                        omega=model.sill,
+                        model_name=model.name,
+                        model_lag=plot_model['h'],
+                        model_semivariance=plot_model['semivariance'],
+                        raw_df=to_model_df,
+                        imname='berea'
+                        )
 
-            # plot the modeled semivariance
-            ax.plot(model['fit_x'], model['fit_y'], color='black')
-
-            # plot the range
-            ax.axvline(x=options.range,
-                    # ymax=spherical_model['sill'], # this is not doing what I want
-                    label=f'Range: {options.range}',
-                    color='black',
-                    linestyle='--')
-
-            ax.axhline(y=model['sill'],
-                label=f"Sill: {model['sill']}",
-                color='black',
-                linestyle=':')
-
-            # add in the Ns
-            props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
-            textstr = '\n'.join((
-                f"sill = {model['sill']:.1f}",
-                f"range = {options.range}"
-                ))
-
-            # place a text box in lower right in axes coords
-            ax.text(0.75, 0.25, textstr, transform=ax.transAxes, fontsize=10,
-                    verticalalignment='top', bbox=props)
-            
-            plt.show()
-            fig.savefig('images/berea_semivariogram.png')
+            plot.show_and_save()
 
         else:
             print("Model not implemented yet, sorry.")
