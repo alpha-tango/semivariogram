@@ -144,8 +144,6 @@ def main():
                                         pair_df['near_primary'],
                                         pair_df['far_primary'])
 
-    # TODO: move a lot of the above junk into a config file per dataset
-
 
     ########################################################################
     # Plot option 1: show histogram of raw pairs (helps with binning choice)
@@ -157,7 +155,7 @@ def main():
         
         # Plot x,y of sample locations
         fig, ax = plt.subplots()
-        ax.scatter(berea_df['x_mm'], berea_df['y_mm'])
+        ax.scatter(raw_df['x'], raw_df['y'])
         ax.set_title(f"Location of {sample_count} samples")
         ax.set_xlabel("X (mm)")
         ax.set_ylabel("Y (mm)")
@@ -166,7 +164,7 @@ def main():
 
         # Plot location vs permeability
         fig, ax = plt.subplots()
-        ax.scatter(berea_df['x_mm'], berea_df['permeability_md'])
+        ax.scatter(raw_df['x'], raw_df['primary'])
         ax.set_title("Permeability by x location")
         ax.set_xlabel("X (mm)")
         ax.set_ylabel("Permeability (md)")
@@ -174,7 +172,7 @@ def main():
         fig.savefig('images/berea_permeability_by_x.png')
 
         fig, ax = plt.subplots()
-        ax.scatter(berea_df['y_mm'], berea_df['permeability_md'])
+        ax.scatter(raw_df['y'], raw_df['primary'])
         ax.set_title("Permeability by y location")
         ax.set_xlabel("Y (mm)")
         ax.set_ylabel("Permeability (md)")
@@ -185,7 +183,7 @@ def main():
         fig, ax = plt.subplots()
         ax.scatter(pair_df['h'], pair_df['semivariance'], s=0.2)
         ax.set_title("Semivariance by lag distance (omnidirectional)")
-        ax.set_xlabel("lag distance (mm)")
+        ax.set_xlabel("lag distance")
         ax.set_ylabel("semivariance")
         
         # add in the Ns
@@ -203,13 +201,8 @@ def main():
         fig.savefig('images/berea_raw_pair_data.png')
 
         # Plot a histogram of distances vs. number of points at that distance
-        fig, ax = plt.subplots()
-        ax.hist(pair_df['h'])
-        ax.set_title("Count of sample pairs by lag distance (omnidirectional)")
-        ax.set_xlabel("lag distance (mm)")
-        ax.set_ylabel("count of pairs")
-        plt.show()
-        fig.savefig('images/berea_raw_histogram.png')
+        plot = plots.RawHistogram(imname=workflow_config.im_tag, pair_df=pair_df)
+        plot.show_and_save()
 
         return 0  # don't do any of the following stuff, end work here
 
@@ -256,7 +249,7 @@ def main():
 
         n_bins = len(set(bins_df['bin']))
 
-        plot = plots.RawSemivariogram(imname='berea',
+        plot = plots.RawSemivariogram(imname=workflow_config.im_tag,
                                         pair_df=pair_df,
                                         avg_df=bins_df,
                                         n_bins=n_bins)
@@ -294,7 +287,7 @@ def main():
                         model_lag=plot_model['h'],
                         model_semivariance=plot_model['semivariance'],
                         raw_df=bins_df,
-                        imname='berea'
+                        imname=workflow_config.im_tag
                         )
 
             plot.show_and_save()

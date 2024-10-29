@@ -5,6 +5,43 @@ Some column names are hard-coded, lots of fixes needed.
 """
 import matplotlib.pyplot as plt
 
+class RawHistogram:
+    """
+    Make a histogram of the raw data.
+    """
+    def __init__(self, imname, pair_df):
+        self.fig, self.ax = plt.subplots()
+        self.imname = imname
+        self.pair_df = pair_df
+
+    def labels(self):
+        self.ax.set_title("Count of sample pairs by lag distance")
+        self.ax.set_xlabel("Lag Distance")
+        self.ax.set_ylabel("Count of Pairs")
+
+    def histogram(self):
+        self.ax.hist(self.pair_df['h'])
+
+    def _build(self):
+        self.histogram()
+        self.labels()
+
+    def show_and_save(self):
+        """
+        Create and pop up the chart, then save. 
+        """
+        self._build()
+        plt.show()
+        self.fig.savefig(f'images/{self.imname}_raw_histogram.png')
+
+    def save(self):
+        """
+        Create and save chart without displaying.
+        """
+        self._build()
+        self.fig.savefig(f'images/{self.imname}_raw_histogram.png')
+
+
 class RawSemivariogram:
     """
     Make a raw semivariogram.

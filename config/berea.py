@@ -3,12 +3,17 @@ Config settings for berea dataset
 """
 
 ######################################
+# image settings
+######################################
+
+im_tag = 'berea_test'
+
+
+######################################
 # Preparing raw data for pairwise-df
 ######################################
 
 import duckdb
-
-# 
 
 def raw_data():
     """
