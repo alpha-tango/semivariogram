@@ -113,13 +113,14 @@ def main():
     ########################################
 
     # are we using secondary variables?
-    if raw_df['secondary'].empty:
-        secondary_str = ""
-    else:
+    try:
+        raw_df['secondary']
         secondary_str = """
         near.secondary AS near_secondary,
         far.secondary AS far_secondary,
         """
+    except KeyError:
+        secondary_str = ""
 
     # join data to itself
     pair_join = f"""
@@ -236,6 +237,8 @@ def main():
                                         avg_df=bins_df,
                                         n_bins=n_bins)
         plot.show_and_save()
+
+        return 0
 
 
     ###########################################################
