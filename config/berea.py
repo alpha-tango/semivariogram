@@ -3,17 +3,35 @@ Config settings for berea dataset
 """
 
 ######################################
-# image settings
+# image settings and functions
 ######################################
 
-im_tag = 'berea_test'
+IM_TAG = 'berea_test'
+
+def custom_raw_plots(raw_df):
+    import matplotlib.pyplot as plt
+
+    # Plot location vs permeability
+    fig, ax = plt.subplots()
+    ax.scatter(raw_df['x'], raw_df['primary'])
+    ax.set_title("Permeability by x location")
+    ax.set_xlabel("X (mm)")
+    ax.set_ylabel("Permeability (md)")
+    plt.show()
+    fig.savefig('images/berea_permeability_by_x.png')
+
+    fig, ax = plt.subplots()
+    ax.scatter(raw_df['y'], raw_df['primary'])
+    ax.set_title("Permeability by y location")
+    ax.set_xlabel("Y (mm)")
+    ax.set_ylabel("Permeability (md)")
+    plt.show()
+    fig.savefig('images/berea_permeability_by_y.png')
 
 
 ######################################
 # Preparing raw data for pairwise-df
 ######################################
-
-import duckdb
 
 def raw_data():
     """
@@ -24,6 +42,8 @@ def raw_data():
     `primary`: the primary parameter to look at. 
     `secondary`: (optional) the secondary parameter.
     """
+    import duckdb
+
     berea_select = """
         SELECT
         row_number() OVER () AS id,

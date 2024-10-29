@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 import argparse
 import duckdb
+import importlib
 import math
 import matplotlib.pyplot as plt
 import numpy as np
@@ -20,12 +21,20 @@ def main():
     ###################################
 
     parser = argparse.ArgumentParser(
-                    prog='Semivariogram - Berea',
-                    description='Build a semivariogram using the Berea subset',
+                    prog='Semivariogram',
+                    description='Build a semivariogram',
                     epilog="""
                     If neither bin_width nor custom_bins is set, the default behavior
                     is to use equal points per bin.
                     """)
+
+    parser.add_argument(
+        'config_file',
+        type=str,
+        help="""
+        Specify the name of the config file to use. Ex: if you have 'config/myfile.py',
+        this argument should be `myfile`
+        """)
     
     parser.add_argument(
         'plot',
@@ -73,11 +82,15 @@ def main():
         """)
     # TODO: add option to run all models
 
+
     try:
         options = parser.parse_args()
     except:
         parser.print_help()
         return 1
+
+    workflow_config = importlib.import_module(f'config.{options.config_file}')
+    print(workflow_config)
 
     if options.bin_method == 'fixed_width':
         assert options.bin_width is not None
@@ -149,37 +162,28 @@ def main():
     # Plot option 1: show histogram of raw pairs (helps with binning choice)
     ########################################################################
 
-    # TODO: also plot raw data and trendlines
-
     if options.plot == 'raw_histogram':
         
+        #########################################
+        # Custom plots
+        ##########################################
+
+        workflow_config.custom_raw_plots(raw_df)
+
+        ##########################################
+        # Boilerplate plots
+        ##########################################
+
         # Plot x,y of sample locations
-        plot = plots.SampleLocations(imname=workflow_config.im_tag, raw_df=raw_df)
+        plot = plots.SampleLocations(imname=workflow_config.IM_TAG, raw_df=raw_df)
         plot.show_and_save()
 
-        # Plot location vs permeability
-        fig, ax = plt.subplots()
-        ax.scatter(raw_df['x'], raw_df['primary'])
-        ax.set_title("Permeability by x location")
-        ax.set_xlabel("X (mm)")
-        ax.set_ylabel("Permeability (md)")
-        plt.show()
-        fig.savefig('images/berea_permeability_by_x.png')
-
-        fig, ax = plt.subplots()
-        ax.scatter(raw_df['y'], raw_df['primary'])
-        ax.set_title("Permeability by y location")
-        ax.set_xlabel("Y (mm)")
-        ax.set_ylabel("Permeability (md)")
-        plt.show()
-        fig.savefig('images/berea_permeability_by_y.png')
-
         # Plot distances vs semivariances
-        plot = plots.RawPairData(imname=workflow_config.im_tag, pair_df=pair_df)
+        plot = plots.RawPairData(imname=workflow_config.IM_TAG, pair_df=pair_df)
         plot.show_and_save()
 
         # Plot a histogram of distances vs. number of points at that distance
-        plot = plots.RawHistogram(imname=workflow_config.im_tag, pair_df=pair_df)
+        plot = plots.RawHistogram(imname=workflow_config.IM_TAG, pair_df=pair_df)
         plot.show_and_save()
 
         return 0  # don't do any of the following stuff, end work here
@@ -227,7 +231,7 @@ def main():
 
         n_bins = len(set(bins_df['bin']))
 
-        plot = plots.RawSemivariogram(imname=workflow_config.im_tag,
+        plot = plots.RawSemivariogram(imname=workflow_config.IM_TAG,
                                         pair_df=pair_df,
                                         avg_df=bins_df,
                                         n_bins=n_bins)
@@ -238,26 +242,28 @@ def main():
     # Plot option 3: semivariogram with a fitted model
     ###########################################################
 
-    elif options.plot == 'semivariogram':
+    # check that the user has given a range to fit the model on
+    if not options.range:
+        print("Must specify range.")
+        return 1
 
-        # check that the user has given a range to fit the model on
-        if not options.range:
-            print("Must specify range.")
-            return 1
+    # model the binned data
+    if not options.model:
+        print("You must specify a model")
+        return 1
 
-        # model the binned data
-        if not options.model:
-            print("You must specify a model")
-            return 1
+    # fit the model to the data
+    model_class = models.get_model(options.model)
+    model = model_class(data_df=to_model_df, fit_range=options.range)
+    print(model.name)
+
+    # make semivariogram
+    if options.plot == 'semivariogram':
 
         # fit and plot model
-        elif options.model in ('spherical', 'exponential', 'gaussian', 'isotonic'):
+        if options.model in ('spherical', 'exponential', 'gaussian', 'isotonic'):
 
-            model_class = models.get_model(options.model)
-            model = model_class(data_df=to_model_df, fit_range=options.range)
-            print(model.name)
             plot_model = model.plottable()
-
             plot = plots.Semivariogram(
                         a=options.range,
                         omega=model.sill,
@@ -265,7 +271,7 @@ def main():
                         model_lag=plot_model['h'],
                         model_semivariance=plot_model['semivariance'],
                         raw_df=bins_df,
-                        imname=workflow_config.im_tag
+                        imname=workflow_config.IM_TAG
                         )
 
             plot.show_and_save()
@@ -274,9 +280,9 @@ def main():
             print("Model not implemented yet, sorry.")
             return 1
 
-    # TODO: plots overwrite each other, fix this. 
+        # TODO: plots overwrite each other, fix this.
 
-    return 0
+        return 0
 
 
 if __name__ == "__main__":
