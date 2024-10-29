@@ -180,25 +180,8 @@ def main():
         fig.savefig('images/berea_permeability_by_y.png')
 
         # Plot distances vs semivariances
-        fig, ax = plt.subplots()
-        ax.scatter(pair_df['h'], pair_df['semivariance'], s=0.2)
-        ax.set_title("Semivariance by lag distance (omnidirectional)")
-        ax.set_xlabel("lag distance")
-        ax.set_ylabel("semivariance")
-        
-        # add in the Ns
-        props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
-        textstr = '\n'.join((
-            f"sample count = {sample_count}",
-            f"pair count = {pair_count}"
-            ))
-
-        # place a text box in upper left in axes coords
-        ax.text(0.05, 0.95, textstr, transform=ax.transAxes, fontsize=10,
-                verticalalignment='top', bbox=props)
-
-        plt.show()
-        fig.savefig('images/berea_raw_pair_data.png')
+        plot = plots.RawPairData(imname=workflow_config.im_tag, pair_df=pair_df)
+        plot.show_and_save()
 
         # Plot a histogram of distances vs. number of points at that distance
         plot = plots.RawHistogram(imname=workflow_config.im_tag, pair_df=pair_df)

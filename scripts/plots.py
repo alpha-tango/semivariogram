@@ -5,6 +5,52 @@ Some column names are hard-coded, lots of fixes needed.
 """
 import matplotlib.pyplot as plt
 
+class RawPairData:
+    """
+    Plot the raw pair data.
+    """
+    def __init__(self, imname, pair_df):
+        self.fig, self.ax = plt.subplots()
+        self.imname = imname
+        self.pair_df = pair_df
+
+    def labels(self):
+        self.ax.set_title("Semivariance by lag distance")
+        self.ax.set_xlabel("Lag distance")
+        self.ax.set_ylabel("Semivariance")
+
+    def scatter(self):
+        self.ax.scatter(self.pair_df['h'], self.pair_df['semivariance'], s=0.2)
+
+    def text_box(self):
+        props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
+        textstr = f"pair count = {self.pair_df['h'].count()}"
+
+        # place a text box in upper left in axes coords
+        self.ax.text(0.05, 0.95, textstr, transform=self.ax.transAxes, fontsize=10,
+                verticalalignment='top', bbox=props)
+
+    def _build(self):
+        self.scatter()
+        self.labels()
+        self.text_box()
+
+    def show_and_save(self):
+        """
+        Create and pop up the chart, then save. 
+        """
+        self._build()
+        plt.show()
+        self.fig.savefig(f'images/{self.imname}_raw_pairs.png')
+
+    def save(self):
+        """
+        Create and save chart without displaying.
+        """
+        self._build()
+        self.fig.savefig(f'images/{self.imname}_raw_pairs.png')
+
+
 class RawHistogram:
     """
     Make a histogram of the raw data.
