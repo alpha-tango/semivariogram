@@ -90,38 +90,38 @@ def main():
     # get dataset
     ################################
 
-    berea_select = """
-    SELECT
-    row_number() OVER () AS id,
-    x_mm,
-    y_mm,
-    permeability_md,
-    water_resisitivity_ohmm AS resistivity_ohmm
-    FROM read_csv('data/berea_subset2.csv', normalize_names=True)
-    ORDER BY x_mm, y_mm ASC
-    """
-    berea_df = duckdb.sql(berea_select).df()
-    sample_count = berea_df['id'].count()
+    # get the raw data from the config file
+    raw_df = workflow_config.raw_data()
+    sample_count = raw_df['id'].count()
+    print(f"{sample_count} samples found in raw data")
 
     ########################################
     # find pairwise lags and semivariances
     ########################################
 
+    # are we using secondary variables?
+    if raw_df['secondary'].empty:
+        secondary_str = ""
+    else:
+        secondary_str = """
+        near.secondary AS near_secondary,
+        far.secondary AS far_secondary,
+        """
+
     # join data to itself
-    pair_join = """
+    pair_join = f"""
     SELECT
-        near.x_mm AS near_x_mm,
-        near.y_mm AS near_y_mm,
-        far.x_mm AS far_x_mm,
-        far.y_mm AS far_y_mm,
-        near.resistivity_ohmm AS near_resistivity,
-        far.resistivity_ohmm AS far_resistivity,
-        near.permeability_md AS near_permeability,
-        far.permeability_md AS far_permeability
+        near.x AS near_x,
+        near.y AS near_y,
+        far.x AS far_x,
+        far.y AS far_y,
+        {secondary_str}
+        near.primary AS near_primary,
+        far.primary AS far_primary
     FROM 
-        berea_df AS near
+        raw_df AS near
     JOIN
-        berea_df AS far
+        raw_df AS far
     ON near.id < far.id
     """
 
@@ -129,20 +129,20 @@ def main():
 
     # check that the number of pairs is as expected
     expected_pair_count = sample_count * (sample_count - 1) // 2
-    pair_count = pair_df['near_x_mm'].count()
+    pair_count = pair_df['near_x'].count()
     print(f"Got {pair_count} pairs, expected {expected_pair_count}")
 
     # find lag distance for each pair
     pair_df['h'] = stats.euclidean_distance_2d(
-                                        pair_df['near_x_mm'],
-                                        pair_df['far_x_mm'],
-                                        pair_df['near_y_mm'],
-                                        pair_df['far_y_mm'])
+                                        pair_df['near_x'],
+                                        pair_df['far_x'],
+                                        pair_df['near_y'],
+                                        pair_df['far_y'])
 
     # find individual semivariance values for the pairs
     pair_df['semivariance'] = stats.raw_semivariance(
-                                        pair_df['near_permeability'],
-                                        pair_df['far_permeability'])
+                                        pair_df['near_primary'],
+                                        pair_df['far_primary'])
 
     # TODO: move a lot of the above junk into a config file per dataset
 
