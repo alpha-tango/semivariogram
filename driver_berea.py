@@ -3,13 +3,15 @@ import argparse
 import duckdb
 import math
 import matplotlib.pyplot as plt
+import numpy as np
 from typing import Union, List
 
+import scripts.binner as binners
 import scripts.models as models
 import scripts.plots as plots
 import scripts.stats as stats
 
-import config.berea
+import config.berea as workflow_config
 
 
 def main():
@@ -35,15 +37,26 @@ def main():
         Semivariogram displays a semivariogram using the selected model, or all models.
         """)
 
+    parser.add_argument('--bin_method', choices=['config', 'fixed_width', 'equal_points', 'raw'],
+        help="""
+        Choose a method to bin the data before modeling semivariance.
+        `config`: in the appropriate config file, set a list of bin maxes.
+        `fixed_width`: bins are of fixed width. Must be used with `--bin_width` argument.
+        `equal_points`: bins have an equal number of points. Defaults to square 
+            root of the number of data points, or can be used with `--points_per_bin` argument.
+        `raw`: does not bin the data at all.
+        """
+        )
+
     parser.add_argument("--bin_width", type=int, 
         help="""
         If set, this forces the semivariogram to use the specified, fixed bin width.
         """)
 
-    parser.add_argument("-bx", "--bin_max", type=float, action='append',
+    parser.add_argument("--points_per_bin", type=int,
         help="""
-        A list of floats or ints to use for raw semivariogram bin maxes.
-        Use like: `-bx 10 -bx 20.0 -bx 30`
+        If used with `--bin_method=equal_points`, this forces the semivariogram to use the
+        specified number of points per bin.
         """)
 
     parser.add_argument("--range", type=float,
@@ -65,6 +78,13 @@ def main():
     except:
         parser.print_help()
         return 1
+
+    if options.bin_method == 'fixed_width':
+        assert options.bin_width is not None
+    elif options.bin_method == 'equal_points':
+        assert options.points_per_bin is not None
+    elif options.bin_method == 'config':
+        assert workflow_config.BIN_MAXES is not None
 
     ################################
     # get dataset
@@ -203,95 +223,23 @@ def main():
 
     # First: Bin the data according to the user's choice
 
-    if options.bin_width:  # use a fixed fixed bin size (HW5 Q2.ii)
+    if options.bin_method == 'fixed_width':  # use a fixed fixed bin size (HW5 Q2.ii)
 
-        # use DuckDB query to calculate per-bin average lag and semivariance
-        # TODO: add some sort of validation for bin width?
+        binner = binners.EqualWidthBinner(bin_width=options.bin_width)
+        bins_df = binner.bins(pair_df)
 
-        binner = f"""
-        WITH bins AS (
-            SELECT
-                h AS lag_distance,
-                semivariance,
-                {options.bin_width} AS bin_width,
-                CEIL(h / {options.bin_width}) AS bin
-            FROM pair_df
-            ORDER BY h ASC
-        )
+    elif options.bin_method == 'config':  # use a custom set of bins (HW5 Q2.iii)
 
-        SELECT
-            AVG(lag_distance) AS h,
-            AVG(semivariance) AS semivariance,
-            COUNT() AS n
-        FROM bins
-        GROUP BY bin
-        ORDER BY 1
-        """
-
-    elif options.bin_max:  # use a custom set of bins (HW5 Q2.iii)
+        binner = binners.CustomBinner(workflow_config.BIN_MAXES)
+        bins_df = binner.bins(pair_df=pair_df)
         
-        # sort to make mapping function nicer
-        options.bin_max.sort()
-        print(options.bin_max)
+    elif options.bin_method == 'equal_points':  # each bin has a fixed number of points (HW5 Q2.i)
+        binner = binners.EqualPointBinner(points_per_bin=options.points_per_bin)
+        bins_df = binner.bins(pair_df=pair_df)
 
-        # calculate max lag distance in the pair dataset
-        max_lag = pair_df['h'].max()
-
-        # mapping function for binning
-        def binner(x):
-
-            # want the first bin that is greater than or equal to the distance
-            for m in options.bin_max:
-                if m >= x:
-                    return m
-            
-            # the user didn't specify a bin large enough for the biggest lag
-            # so just bin all data above their largest bin together
-            return max_lag
-
-        # map each pair to a bin max
-        pair_df['bin'] = pair_df['h'].map(binner)
-        print(pair_df.head(20))
-        
-        # use DuckDB query to calculate per-bin average lag and semivariance
-        binner = f"""
-        SELECT
-            AVG(h) AS h,
-            AVG(semivariance) AS semivariance,
-            COUNT() AS n
-        FROM pair_df
-        GROUP BY bin
-        ORDER BY 1
-        """
-        
-    else:  # each bin has a fixed number of points (HW5 Q2.i) (default behavior)
-        
-        # calculate using square-route method shown in class
-        n_bins = math.ceil(pair_count ** (1/2))
-
-        # use DuckDB query to calculate per-bin average lag and semivariance
-        binner = f"""
-            WITH bins AS (
-                SELECT
-                    h AS lag_distance,
-                    semivariance AS semivariance,
-                    FLOOR(ROW_NUMBER() OVER (ORDER BY h ASC) / {n_bins}) * {n_bins} AS bin
-                FROM 
-                    pair_df
-            )
-
-            SELECT
-                AVG(lag_distance) AS h,
-                AVG(semivariance) AS semivariance,
-                COUNT() AS n
-            FROM
-                bins
-            GROUP BY bin
-            ORDER BY 1
-            """
-
-    # turn query results into dataframe
-    bins_df = duckdb.sql(binner).df()
+    else:  # options.bin_method == 'raw' based on the argument options
+        print('not supported')
+        return 1
 
     # check work
     print(bins_df.head(22))
@@ -303,11 +251,10 @@ def main():
     #######################################################################
 
     if options.plot == 'raw_semivariogram':
-        # Plot the raw semivariance.
-        # The x-axis being lag distances,
-        # The y-axis being semivariance.
-        # Raw points should be plotted in gray
-        # Averages per bins should be plotted in red.
+        # Plot the raw semivariance
+        # See details in the class description
+
+        n_bins = len(set(bins_df['bin']))
 
         plot = plots.RawSemivariogram(imname='berea',
                                         pair_df=pair_df,
