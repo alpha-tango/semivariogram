@@ -5,6 +5,44 @@ Some column names are hard-coded, lots of fixes needed.
 """
 import matplotlib.pyplot as plt
 
+class SampleLocations:
+    """
+    Plot the sample locations of raw data.
+    """
+    def __init__(self, imname, raw_df):
+        self.fig, self.ax = plt.subplots()
+        self.imname = imname
+        self.raw_df = raw_df
+
+    def labels(self):
+        self.ax.set_xlabel("X")
+        self.ax.set_ylabel("Y")
+        self.ax.set_title(f"Location of {self.raw_df['x'].count()} samples")
+
+    def scatter(self):
+        # Plot x,y of sample locations
+        self.ax.scatter(self.raw_df['x'], self.raw_df['y'])
+
+    def _build(self):
+        self.scatter()
+        self.labels()
+
+    def show_and_save(self):
+        """
+        Create and pop up the chart, then save.
+        """
+        self._build()
+        plt.show()
+        self.fig.savefig(f'images/{self.imname}_sample_locations.png')
+
+    def save(self):
+        """
+        Create and save chart without displaying.
+        """
+        self._build()
+        self.fig.savefig(f'images/{self.imname}_sample_locations.png')
+
+
 class RawPairData:
     """
     Plot the raw pair data.

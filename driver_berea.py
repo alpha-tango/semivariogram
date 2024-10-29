@@ -154,13 +154,8 @@ def main():
     if options.plot == 'raw_histogram':
         
         # Plot x,y of sample locations
-        fig, ax = plt.subplots()
-        ax.scatter(raw_df['x'], raw_df['y'])
-        ax.set_title(f"Location of {sample_count} samples")
-        ax.set_xlabel("X (mm)")
-        ax.set_ylabel("Y (mm)")
-        plt.show()
-        fig.savefig('images/berea_sample_locations.png')
+        plot = plots.SampleLocations(imname=workflow_config.im_tag, raw_df=raw_df)
+        plot.show_and_save()
 
         # Plot location vs permeability
         fig, ax = plt.subplots()
