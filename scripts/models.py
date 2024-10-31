@@ -224,10 +224,25 @@ def fit_model(model_type, fit_dataframe, h_col, gamma_col, fit_range):
             'sill': sill,
             'range': fit_range}
 
+class HW6Model(ExponentialModel):
+    """
+    Exponential model that inherits from the general Exponential Model
+    functions.
+    """
+    def get_sill(self, data_df):
+        """
+        Overwrite the sill function from the general Semivariance model,
+        which ExponentialModel inherits from.
+        HW6 guidance specified 15000 for the sill.
+        """
+        return 15000
+
+
 #############################
 # variables
 #############################
 
 SUPPORTED_MODELS = {
-    'exponential': ExponentialModel
+    'exponential': ExponentialModel,
+    'hw6': HW6Model
 }
