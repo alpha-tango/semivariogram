@@ -15,6 +15,27 @@ import duckdb
 
 import math
 
+class RawBinner:
+    """
+    Don't do anything lol.
+    """
+
+    def __init__(self):
+        pass
+
+    def bins(self, pair_df):
+        no_bins = """
+        SELECT
+        h AS bin,
+        h,
+        semivariance,
+        1 AS n
+        FROM
+        pair_df
+        """
+        return duckdb.sql(no_bins).df()
+
+
 class CustomBinner:
     """
     Pass in a custom list of bin maxes
