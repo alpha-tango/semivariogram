@@ -237,6 +237,19 @@ class HW6Model(ExponentialModel):
         """
         return 15000
 
+    def fit_h(self, h):
+        """
+        De Marsily:
+        w * ( 1 - exp(-h/a))
+        Vectorized implementation.
+        Default is to use the model data, but you can pass in 
+        any vector of distances. 
+
+        HW6:
+        15000 * (1 - exp(-3|h| / 10))
+        """
+        return self.sill * (1 - np.exp( -3*h / self.a))
+
 
 #############################
 # variables

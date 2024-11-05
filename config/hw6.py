@@ -27,16 +27,16 @@ def raw_data():
     """
     import duckdb
 
-    berea_select = """
+    sample_select = """
         SELECT
         id,
         x,
         y,
         na_mgl AS primary
         FROM read_csv('data/hw6.csv', normalize_names=True)
-        ORDER BY x, y ASC
+        ORDER BY id ASC
         """
-    return duckdb.sql(berea_select).df()
+    return duckdb.sql(sample_select).df()
 
 
 ######################################

@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from scipy.spatial import distance_matrix
+import seaborn as sns
 
 import scripts.models as models
 
@@ -56,6 +57,7 @@ def main():
 
     # get raw dataset of known sample points
     raw_df = workflow_config.raw_data()
+    print(raw_df)
 
     # get the model
     # fit the model to the data
@@ -67,10 +69,10 @@ def main():
 
     # create distance matrix using scipy function
     # it uses minkowski distance, p=2 is same as Euclidean distance
-    pair_matrix = distance_matrix(sample_coords, sample_coords, p=2)  #
+    h_matrix = distance_matrix(sample_coords, sample_coords, p=2)  # checked manually
 
     # calculate semivariance from model and distance matrix
-    semivariance_knownpts_matrix = model.fit_h(pair_matrix)
+    semivariance_knownpts_matrix = model.fit_h(h_matrix)  # checked manually
 
     # add the ones and zero as described in class (due to Lagrange Param)
     b = np.ones((len(sample_coords),1))
@@ -90,18 +92,18 @@ def main():
     x_tol = (max_x - min_x) * .1
     y_tol = (max_y - min_y) * .1
 
-    # now make a 20 x 20 grid around the sample points
-    n_pts = 5
+    # now make a n_pts x n_pts grid around the sample points
+    n_pts = 100
     xs = np.linspace(min_x - x_tol, max_x + x_tol, n_pts)
     ys = np.linspace(min_y - y_tol, max_y + y_tol, n_pts)
     target_coords = [[i,j] for i in xs for j in ys]
 
     # calculate the distances between the sample points and the target point
-    target_coords = [[7, 14]]
+    # target_coords = [[5,6], [7, 14]]  # use these coords for testing
 
     print("Vector Target Distance")
-    target_vector = distance_matrix(sample_coords, target_coords)
-    D_semivariance_target_matrix = model.fit_h(target_vector)
+    target_vector = distance_matrix(sample_coords, target_coords)  # checked manually
+    D_semivariance_target_matrix = model.fit_h(target_vector) # checked manually
     print("target vector shape", target_vector.shape)
     print("D matrix shape (pre adding Lagrange)", D_semivariance_target_matrix.shape)
 
@@ -127,25 +129,52 @@ def main():
 
     # use matrix multiplication to calculate estimated value
     estimates = np.matmul(actual_values_col, W_weights_matrix)
-    print(estimates)
     print("estimate matrix", estimates.shape)
+
+    # calculate error variance
+    # multiply using element-wise / Hadamard multiplication
+    # for i known sample points and j targets
+    # D matrix and W matrix are both (i + 1) rows by j columns
+
+    # element-wise gives one matrix of (i + 1) rows by j columns
+    # each element is weight i,j multipled by semivariance i,j
+    q = np.multiply(W_weights_matrix, D_semivariance_target_matrix)
+    # now sum down the columns
+    # so we are summing over weight/semivariance product over the n sample points
+    # and get get a vector of length j, each element is error variance
+    # at target point j
+    error_variances = q.sum(axis=0)
+    print("error variance matrix", error_variances.shape)
+
+    # turn all the data into a dataframe
+    data = pd.DataFrame(target_coords, columns=['x', 'y'])
+    data['estimate'] = estimates[0]
+    data['error_variance'] = error_variances
     
-    # # turn the coords and estimates into a dataframe
-    # data = np.hstack((target_coords, np.rot90(estimates)))
-    # data_df = pd.DataFrame(data, columns=['x','y', 'estimate'])
+    # create pivoted dataframe for plotting purposes
+    estimate_df = data.pivot(index='y', columns='x', values='estimate')
+    error_df = data.pivot(index='y', columns='x', values='error_variance')
+    x_df = data.pivot(index='y', columns='x', values='x')
+    y_df = data.pivot(index='y', columns='x', values='y')
+    
+    # make a colormap plot of the estimates
+    fig, ax = plt.subplots()
+    a = ax.pcolormesh(x_df, y_df, estimate_df, vmin=estimates.min(), vmax=estimates.max())
 
+    plt.colorbar(a)  # show the color bar to the right
+    ax.scatter(raw_df['x'], raw_df['y'],color='red')  # plot known points on top
 
-    # fig, ax = plt.subplots()
-    # c = ax.pcolormesh(data_df['x'], data_df['y'], data_df['estimate'],
-    #     cmap='RdBu',
-    #     vmin=data_df['estimate'].min(),
-    #     vmax=data_df['estimate'].max())
-    # ax.set_title('pcolormesh')
-    # # set the limits of the plot to the limits of the data
-    # ax.axis([data_df['x'].min(), data_df['x'].max(), data_df['y'].min(), data_df['y'].max()])
-    # fig.colorbar(c, ax=ax)
+    plt.show()
+    plt.savefig(f'images/{workflow_config.IM_TAG}_kriged_values.png')
 
-    # plt.show()
+    # make a colormap plot of the error variances
+    fig, ax = plt.subplots()
+    a = ax.pcolormesh(x_df, y_df, error_df, vmin=error_variances.min(), vmax=error_variances.max())
+    plt.colorbar(a)  # show color bar
+    ax.scatter(raw_df['x'], raw_df['y'],color='red')  # plot known points on top
+
+    plt.show()
+    plt.savefig(f'images/{workflow_config.IM_TAG}_kriged_error.png')
 
     return 0
 
