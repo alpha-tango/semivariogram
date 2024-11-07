@@ -99,7 +99,7 @@ def main():
     target_coords = [[i,j] for i in xs for j in ys]
 
     # calculate the distances between the sample points and the target point
-    # target_coords = [[5,6], [7, 14]]  # use these coords for testing
+    # target_coords = [[5,5], [7, 14], [100,100]]  # use these coords for testing
 
     print("Vector Target Distance")
     target_vector = distance_matrix(sample_coords, target_coords)  # checked manually
@@ -162,19 +162,20 @@ def main():
     a = ax.pcolormesh(x_df, y_df, estimate_df, vmin=estimates.min(), vmax=estimates.max())
 
     plt.colorbar(a)  # show the color bar to the right
-    ax.scatter(raw_df['x'], raw_df['y'],color='red')  # plot known points on top
-
-    plt.show()
+    ax.scatter(raw_df['x'], raw_df['y'],color='red', label="Sampled Point")  # plot known points on top
+    plt.title(f"Estimated values for {workflow_config.IM_TAG}, range = {options.range}")
     plt.savefig(f'images/{workflow_config.IM_TAG}_kriged_values.png')
 
     # make a colormap plot of the error variances
     fig, ax = plt.subplots()
     a = ax.pcolormesh(x_df, y_df, error_df, vmin=error_variances.min(), vmax=error_variances.max())
     plt.colorbar(a)  # show color bar
-    ax.scatter(raw_df['x'], raw_df['y'],color='red')  # plot known points on top
+    ax.scatter(raw_df['x'], raw_df['y'],color='red', label="Sampled Point")  # plot known points on top
 
-    plt.show()
+    plt.title(f"Error variance for {workflow_config.IM_TAG}, range = {options.range}")
     plt.savefig(f'images/{workflow_config.IM_TAG}_kriged_error.png')
+
+    fig, ax = plt.subplots()
 
     return 0
 
