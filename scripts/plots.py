@@ -4,6 +4,7 @@ and labels.
 Some column names are hard-coded, lots of fixes needed.
 """
 import matplotlib.pyplot as plt
+import numpy as np
 
 class SampleLocations:
     """
@@ -154,7 +155,16 @@ class RawSemivariogram:
         """
         Plot the raw pairs
         """
-        self.ax[0].scatter(self.pair_df['h'], self.pair_df['semivariance'], color="lightgray", s=0.2)
+        num_points = len(self.pair_df['h'])
+        if num_points > 1000:
+            s = 0.2
+        if num_points > 100:
+            s = 1
+        if num_points > 10:
+            s = 5
+        else:
+            s = 10
+        self.ax[0].scatter(self.pair_df['h'], self.pair_df['semivariance'], color="lightgray", s=s)
 
     def bin_scatter(self):
         """
@@ -179,7 +189,7 @@ class RawSemivariogram:
             title_str += f': equal points per bin ({self.n_bins} bins)'
 
         self.ax[0].set_title(title_str)
-        self.ax[0].set_xlabel('Lag Distance (h)')
+        self.ax[0].set_xlabel(f'Distance ({self.h_units})')
         self.ax[0].set_ylabel('Semivariance')
 
     def text_box(self):
@@ -230,7 +240,7 @@ class Semivariogram:
     """
 
     def __init__(self, a, omega, model_name, model_lag, model_semivariance, 
-                        raw_df, imname):
+                        raw_df, imname, h_units):
         self.a = a  # range
         self.omega = omega  # sill
         self.model_name = model_name
@@ -239,6 +249,7 @@ class Semivariogram:
         self.raw_df = raw_df
         self.fig, self.ax = plt.subplots(nrows=2, ncols=1, sharex=True)
         self.imname = imname
+        self.h_units = h_units
 
     def labels(self):
         """
@@ -248,7 +259,7 @@ class Semivariogram:
 
         # Main Semivariogram
         title_str = f'Semivariogram: {self.model_name} model'
-        x_str = 'Lag Distance (h)'
+        x_str = f'Distance ({self.h_units})'
         y_str = 'Semivariance'
 
         self.ax[0].set_title(title_str)
@@ -256,7 +267,7 @@ class Semivariogram:
         self.ax[0].set_ylabel(y_str)
 
         # N display
-        self.ax[1].set_xlabel("Lag Distance (h)")
+        self.ax[1].set_xlabel(f"Distance ({self.h_units})")
         self.ax[1].set_ylabel("Points per Bin")
 
     def textbox(self):
