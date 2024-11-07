@@ -29,6 +29,7 @@ class RawBinner:
         h AS bin,
         h,
         semivariance,
+        STDDEV_POP(semivariance) AS stddev,
         1 AS n
         FROM
         pair_df
@@ -73,6 +74,7 @@ class CustomBinner:
             bin,
             AVG(h) AS h,
             AVG(semivariance) AS semivariance,
+            STDDEV_POP(semivariance) AS stddev,
             COUNT() AS n
         FROM pair_df
         GROUP BY bin
@@ -113,6 +115,7 @@ class EqualWidthBinner:
             bin,
             AVG(lag_distance) AS h,
             AVG(semivariance) AS semivariance,
+            STDDEV_POP(semivariance) AS stddev,
             COUNT() AS n
         FROM bins
         GROUP BY bin
@@ -163,6 +166,7 @@ class EqualPointBinner:
                 bin,
                 AVG(lag_distance) AS h,
                 AVG(semivariance) AS semivariance,
+                STDDEV_POP(semivariance) AS stddev,
                 COUNT() AS n
             FROM
                 bins
