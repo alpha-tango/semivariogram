@@ -75,7 +75,7 @@ def main():
         """)
 
     parser.add_argument("--model",
-        choices=['exponential', 'hw6'],
+        choices=['exponential', 'hw6', 'isotonic', 'linear'],
         help="""
         Select a model to fit the semivariogram on, when used in 'semivariogram' mode.
         Choose a single model or 'all'. Currently must be used with "--range" setting.
@@ -103,7 +103,6 @@ def main():
 
     # get the raw data from the config file
     raw_df = workflow_config.raw_data()
-    print(raw_df.head())
     sample_count = raw_df['id'].count()
     print(f"{sample_count} samples found in raw data")
 
@@ -146,11 +145,29 @@ def main():
     print(f"Got {pair_count} pairs, expected {expected_pair_count}")
 
     # find lag distance for each pair
-    pair_df['h'] = stats.euclidean_distance_2d(
-                                        pair_df['near_x'],
-                                        pair_df['far_x'],
-                                        pair_df['near_y'],
-                                        pair_df['far_y'])
+
+    try:
+        # if the user has set a distance method, use their preferred method
+        if workflow_config.DISTANCE_METHOD == 'euclidean':
+            pair_df['h'] = stats.euclidean_distance_2d(
+                                    pair_df['near_x'],
+                                    pair_df['far_x'],
+                                    pair_df['near_y'],
+                                    pair_df['far_y'])
+        elif workflow_config.DISTANCE_METHOD == 'geographic':
+            pair_df['h'] = stats.geographic_distance(
+                                    pair_df['near_x'],
+                                    pair_df['far_x'],
+                                    pair_df['near_y'],
+                                    pair_df['far_y'])
+    except KeyError:
+        # if the user hasn't set a distance method, default to using
+        # Euclidean distance
+        pair_df['h'] = stats.euclidean_distance_2d(
+                                            pair_df['near_x'],
+                                            pair_df['far_x'],
+                                            pair_df['near_y'],
+                                            pair_df['far_y'])
 
     # find individual semivariance values for the pairs
     pair_df['semivariance'] = stats.raw_semivariance(
@@ -234,7 +251,8 @@ def main():
         plot = plots.RawSemivariogram(imname=workflow_config.IM_TAG,
                                         pair_df=pair_df,
                                         avg_df=bins_df,
-                                        n_bins=n_bins)
+                                        n_bins=n_bins,
+                                        h_units=workflow_config.H_UNITS)
         plot.show_and_save()
 
         return 0
@@ -269,7 +287,8 @@ def main():
                     model_lag=plot_model['h'],
                     model_semivariance=plot_model['semivariance'],
                     raw_df=bins_df,
-                    imname=workflow_config.IM_TAG
+                    imname=workflow_config.IM_TAG,
+                    h_units=workflow_config.H_UNITS
                     )
 
         plot.show_and_save()
@@ -277,93 +296,6 @@ def main():
         # TODO: plots overwrite each other, fix this.
         return 0
 
-    #############################################################
-    # Kriging
-    #############################################################
-
-    sample_coords = raw_df[['x', 'y']].values
-
-    # create distance matrix using scipy function
-    # it uses minkowski distance, p=2 is same as Euclidean distance
-    pair_matrix = distance_matrix(sample_coords, sample_coords, p=2)  #
-
-    # calculate semivariance from model and distance matrix
-    semivariance_knownpts_matrix = model.fit_h(pair_matrix)
-
-    # add the ones and zero as described in class (due to Lagrange Param)
-    b = np.ones((len(sample_coords),1))
-    q = np.ones((1, len(sample_coords) + 1))
-    C_semivariance_matrix = np.hstack((semivariance_knownpts_matrix,b))
-    C_semivariance_matrix = np.vstack((C_semivariance_matrix,q))
-    C_semivariance_matrix[len(sample_coords), len(sample_coords)] = 0
-
-    # construct a target grid
-    # get min and max coords from sample data so we know where to center our grid
-    min_x = raw_df['x'].min()
-    min_y = raw_df['y'].min()
-    max_x = raw_df['x'].max()
-    max_y = raw_df['y'].max()
-
-    # lets add a tolerance around the edges
-    x_tol = (max_x - min_x) * .1
-    y_tol = (max_y - min_y) * .1
-
-    # now make a 20 x 20 grid around the sample points
-    n_pts = 5
-    xs = np.linspace(min_x - x_tol, max_x + x_tol, n_pts)
-    ys = np.linspace(min_y - y_tol, max_y + y_tol, n_pts)
-    target_coords = [[i,j] for i in xs for j in ys]
-
-    # calculate the distances between the sample points and the target point
-    target_coords = [[7, 14]]
-
-    print("Vector Target Distance")
-    target_vector = distance_matrix(sample_coords, target_coords)
-    D_semivariance_target_matrix = model.fit_h(target_vector)
-    print("target vector shape", target_vector.shape)
-    print("D matrix shape (pre adding Lagrange)", D_semivariance_target_matrix.shape)
-
-    # Add one on to end of vector due to Lagrange Param
-    q = np.ones((1, len(target_coords)))
-    D_semivariance_target_matrix = np.vstack((D_semivariance_target_matrix,q))
-    print("D matrix shape (with Lagrange)", D_semivariance_target_matrix.shape)
-
-    # do the matrix operations to get the w matrix
-    C_inv = np.linalg.inv(C_semivariance_matrix)
-    W_weights_matrix = np.matmul(C_inv, D_semivariance_target_matrix)
-    print("W matrix shape", W_weights_matrix.shape)
-    # print(W_weights_matrix[:-1].sum())  # check sum to 1 (except Lagrange param) -- YES!
-
-    # get the values of the known samples points
-    actual_values_vector = raw_df[['primary']].values
-
-    # add in a zero to deal with the Lagrange param
-    q = np.zeros((1,1))
-    actual_values_vector = np.vstack((actual_values_vector, q))
-    actual_values_col = np.rot90(actual_values_vector)
-    print("actual values shape", actual_values_col.shape)
-
-    # use matrix multiplication to calculate estimated value
-    estimates = np.matmul(actual_values_col, W_weights_matrix)
-    print(estimates)
-    print("estimate matrix", estimates.shape)
-    
-    # # turn the coords and estimates into a dataframe
-    # data = np.hstack((target_coords, np.rot90(estimates)))
-    # data_df = pd.DataFrame(data, columns=['x','y', 'estimate'])
-
-
-    # fig, ax = plt.subplots()
-    # c = ax.pcolormesh(data_df['x'], data_df['y'], data_df['estimate'],
-    #     cmap='RdBu',
-    #     vmin=data_df['estimate'].min(),
-    #     vmax=data_df['estimate'].max())
-    # ax.set_title('pcolormesh')
-    # # set the limits of the plot to the limits of the data
-    # ax.axis([data_df['x'].min(), data_df['x'].max(), data_df['y'].min(), data_df['y'].max()])
-    # fig.colorbar(c, ax=ax)
-
-    # plt.show()
 
     return 0
 
