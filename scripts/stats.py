@@ -1,8 +1,28 @@
 import numpy as np
+from pyproj import Geod
+
 
 ###################################
 # RAW / INDIVIDUAL STATS
 ###################################
+
+def geographic_distance(long_x_1, long_x_2, lat_y_1, lat_y_2, radians=False):
+    """
+    Geographic (on the earth) distance in kilometers given vectors of lat longs.
+    radians=False assumes data is given in degrees (normal lat/long)
+    rather than in radians.
+    """
+
+    # set earth projection to use
+    g = Geod(ellps="WGS84")
+
+    # g.inv returns a tuple of forward azimuths, back azimuths, and distances in meters
+    # we only care about the distances, which is the 3rd item (index 2) in the tuple
+    inv = g.inv(lons1=long_x_1, lats1=lat_y_1, lons2=long_x_2, lats2=lat_y_2, radians=radians)
+
+    # return the distance portion only in kilometers rather than meters
+    return inv[2] / 1000.0
+
 
 def euclidean_distance_2d(x1, x2, y1, y2):
     """
