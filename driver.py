@@ -38,7 +38,7 @@ def main():
     
     parser.add_argument(
         'plot',
-        choices=['raw_histogram', 'raw_semivariogram', 'semivariogram', 'kriging'],
+        choices=['raw_histogram', 'raw_semivariogram', 'semivariogram'],
         help="""
         Specify which plot you want to build.
         Raw histogram displays a histogram of the raw data.
@@ -160,7 +160,7 @@ def main():
                                     pair_df['far_x'],
                                     pair_df['near_y'],
                                     pair_df['far_y'])
-    except KeyError:
+    except AttributeError:
         # if the user hasn't set a distance method, default to using
         # Euclidean distance
         pair_df['h'] = stats.euclidean_distance_2d(
@@ -173,6 +173,9 @@ def main():
     pair_df['semivariance'] = stats.raw_semivariance(
                                         pair_df['near_primary'],
                                         pair_df['far_primary'])
+
+    # sort df by distance
+    pair_df.sort_values(by=['h'], axis=0, inplace=True)
 
 
     ########################################################################
@@ -201,6 +204,10 @@ def main():
 
         # Plot a histogram of distances vs. number of points at that distance
         plot = plots.RawHistogram(imname=workflow_config.IM_TAG, pair_df=pair_df)
+        plot.show_and_save()
+
+        # Plot smoothed raw pairs
+        plot = plots.IsotonicSmooth(imname=workflow_config.IM_TAG, pair_df=pair_df)
         plot.show_and_save()
 
         return 0  # don't do any of the following stuff, end work here
@@ -253,6 +260,7 @@ def main():
                                         avg_df=bins_df,
                                         n_bins=n_bins,
                                         h_units=workflow_config.H_UNITS)
+
         plot.show_and_save()
 
         return 0
