@@ -3,8 +3,11 @@ All the code in one place to make the plt plots with correct formatting
 and labels.
 Some column names are hard-coded, lots of fixes needed.
 """
+
 import matplotlib.pyplot as plt
 import numpy as np
+from sklearn.isotonic import isotonic_regression
+
 
 class SampleLocations:
     """
@@ -227,6 +230,77 @@ class RawSemivariogram:
         self.fig.savefig(f'images/{self.imname}_raw_semivariogram.png')
 
 
+class IsotonicSmooth():
+    """
+    Show a plot with smoothed raw pair data (via isotonic regression)
+    and suggested range and sill.
+    """
+    def __init__(self, imname, pair_df):
+        self.imname = imname
+        self.pair_df = pair_df
+        self.fig, self.ax = plt.subplots()
+        self.sill = 0
+        self.range = 0
+
+    def isotonic_y(self):
+        """
+        Smooth input pair data into constraint that it's monotonically increasing.
+        See docs on isotonic regression for more details
+        """
+        return isotonic_regression(self.pair_df['semivariance'])
+
+    def set_sill_range(self, tolerance=0.07):
+        """
+        Suggest a sill and range for the data.
+        """
+
+        counter = 0
+        curr_sill = 0
+        curr_range = 0
+        pair_count = len(self.pair_df['h'])
+
+        for i,j in enumerate(self.isotonic_y()):
+            if j == curr_sill:
+                counter += 1
+            else:
+                counter = 0
+                curr_range = self.pair_df['h'][i]
+
+            if counter >= pair_count * tolerance:
+                self.sill = curr_sill
+                self.range = curr_range
+                return
+            curr_sill = j
+        
+        self.sill = curr_sill
+        self.range = curr_range
+        return
+
+    def _build(self):
+        self.set_sill_range()
+        y = self.isotonic_y()
+        self.ax.plot(self.pair_df['h'], y, label="Isotonic regression on pairs")
+        self.ax.axhline(self.sill, color='black', label=f"Suggested sill: {self.sill:.2f}")
+        self.ax.bar(self.range, height = y.max(), label=f"Suggested range: {self.range:.2f}", color="orange")
+        self.ax.set_title("Pairs Smoothed with Isotonic Regression")
+        self.ax.legend()
+
+
+    def show_and_save(self):
+        """
+        Create and pop up the chart, then save. 
+        """
+        self._build()
+        plt.show()
+        self.fig.savefig(f'images/{self.imname}_isotonic.png')
+
+    def save(self):
+        """
+        Create and save chart without displaying.
+        """
+        self._build()
+        self.fig.savefig(f'images/{self.imname}_isotonic.png')
+
 class Semivariogram:
     """
     All the code to make a semivariogram.
@@ -247,7 +321,7 @@ class Semivariogram:
         self.model_x = model_lag
         self.model_y = model_semivariance
         self.raw_df = raw_df
-        self.fig, self.ax = plt.subplots(nrows=2, ncols=1, sharex=True)
+        self.fig, self.ax = plt.subplots(nrows=2, ncols=1, sharex=True, height_ratios=[3,1])
         self.imname = imname
         self.h_units = h_units
 
@@ -293,6 +367,18 @@ class Semivariogram:
             color='red',
             marker='x')
 
+    def confidence_intervals(self):
+        """
+        Shaded bar for 95% confidence.
+        Using equation from class:
+        semivar_mean_in_bin +- 1.96 * std_dev_semivar_in_bin / sqrt(n_pairs_in_bin)
+        """
+        adj = 1.96 * self.raw_df['stddev'] / self.raw_df['n'] ** (1/2)
+        y1 = self.raw_df['semivariance'] + adj
+        y2 = self.raw_df['semivariance'] - adj
+
+        self.ax[0].fill_between(self.raw_df['h'], y1, y2, alpha=0.2)
+
     def model_line(self):
         """
         Plot the modeled line.
@@ -320,6 +406,7 @@ class Semivariogram:
             linestyle=':')
 
     def _build(self):
+        self.confidence_intervals()
         self.scatter_points()
         self.model_line()
         self.bin_scatter()
