@@ -37,15 +37,16 @@ class SemivarianceModel:
     want to fit the data.
     """
 
-    def __init__(self, data_df, fit_range):
+    def __init__(self, data_df, fit_range, sill = None, nugget = 0):
         # set the params
         self.data = data_df
         self.a = fit_range
 
         # get the sill, bc it's needed for almost every model
         # and we only want to calculate it once
-        self.sill = self.get_sill(data_df)
+        self.sill = sill || self.get_sill(data_df)
         self.name = self.get_name()
+        self.nugget = 0
         
         # TODO: add a column validity check above the sill setter
 
@@ -139,20 +140,29 @@ class ExponentialModel(SemivarianceModel):
     def get_name(self):
         return 'Exponential'
 
+class SphericalModel(SemivarianceModel):
+
+    def fit_h(self, h):
+        """
+        De Marsily:
+        w * ((3/2) * (h/a) - (1/2)*(h/a)**3)  for h < a
+        w   for h > a (I implement as h >= a)
+        where w = sill
+        a = range,
+        h = lag.
+        """
+        if h >= self.range:
+            return self.sill + self.nugget
+        else:
+            return self.sill * ((3/2) * (h/self.a) - (1/2) * (h/self.a)**3) + nugget
+
 
 ###########################
 # Code to deprecate
 ###########################
 
     # def spherical(h):
-    #     """
-    #     De Marsily:
-    #     w * ((3/2) * (h/a) - (1/2)*(h/a)**3)  for h < a
-    #     w   for h > a (I implement as h >= a)
-    #     where w = sill
-    #     a = range,
-    #     h = lag.
-    #     """
+
     #     if h >= fit_range:
     #         return sill
     #     else:
