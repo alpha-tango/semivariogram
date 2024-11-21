@@ -37,14 +37,14 @@ class SemivarianceModel:
     want to fit the data.
     """
 
-    def __init__(self, data_df, fit_range, sill = None, nugget = 0):
+    def __init__(self, data_df, fit_range, sill, nugget = 0):
         # set the params
         self.data = data_df
         self.a = fit_range
 
         # get the sill, bc it's needed for almost every model
         # and we only want to calculate it once
-        self.sill = sill || self.get_sill(data_df)
+        self.sill = sill
         self.name = self.get_name()
         self.nugget = 0
         
@@ -56,21 +56,6 @@ class SemivarianceModel:
         model classes
         """
         pass
-
-    def get_sill(self, data_df):
-        """
-        Calculate the sill from the data.
-        """
-        sill_select = f"""
-        SELECT
-            AVG(semivariance) AS sill
-        FROM data_df
-        WHERE h >= {self.a}
-        """
-
-        ### THIS ERRORS WHEN RANGE ISN'T SET CORRECTLY!
-
-        return duckdb.sql(sill_select).fetchnumpy()['sill'][0]
 
     def max_h(self, data_df):
         """
@@ -182,13 +167,6 @@ class HW6Model(ExponentialModel):
     Exponential model that inherits from the general Exponential Model
     functions.
     """
-    def get_sill(self, data_df):
-        """
-        Overwrite the sill function from the general Semivariance model,
-        which ExponentialModel inherits from.
-        HW6 guidance specified 15000 for the sill.
-        """
-        return 15000
 
     def fit_h(self, h):
         """
