@@ -37,9 +37,8 @@ class SemivarianceModel:
     want to fit the data.
     """
 
-    def __init__(self, data_df, fit_range, sill, nugget = 0):
+    def __init__(self, fit_range, sill, nugget = 0):
         # set the params
-        self.data = data_df
         self.a = fit_range
 
         # get the sill, bc it's needed for almost every model
@@ -49,6 +48,9 @@ class SemivarianceModel:
         self.nugget = 0
         
         # TODO: add a column validity check above the sill setter
+
+    def set_data(data_df):
+        self.data = data_df
 
     def get_name(self):
         """
