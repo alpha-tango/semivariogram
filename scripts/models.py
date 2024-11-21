@@ -49,7 +49,7 @@ class SemivarianceModel:
         
         # TODO: add a column validity check above the sill setter
 
-    def set_data(data_df):
+    def set_data(self, data_df):
         self.data = data_df
 
     def get_name(self):
