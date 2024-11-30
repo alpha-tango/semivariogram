@@ -28,7 +28,7 @@ def raw_data():
     columns = ['id', 'x', 'y', 'V', 'U']
     data = [
     [1, -3, 6, 414, 741],
-    [2, -8, 5, 386, 504],
+    [2, -8, -5, 386, 504],
     [3, 3, -3, 56, None]  # Sample 3 has no "U" data
     ]
     return pd.DataFrame(data, columns=columns)
@@ -52,27 +52,62 @@ def secondary_data():
 # Model
 ####################################
 
-# models are given on p. 408
-# I'm ignoring the anistropy so these are not quite the same
-# also I'm very confused by the ranges
+# Textbook unhelpful
+# Hardcoding values from Table 17.1
 
-primary_sill = 80000  # between 70000 and 95000
-primary_range = 30
-primary_nugget = 440000
+class DummyModel:
+    
+    def init(self):
+        pass
 
-PRIMARY_MODEL = SphericalModel(fit_range=primary_range, sill=primary_sill, nugget=primary_nugget)
+    def fit_h(self):
+        pass
 
-secondary_sill = 42000  # between 40000 and 45000
-secondary_range = 30
-secondary_nugget = 22000
 
-SECONDARY_MODEL = SphericalModel(fit_range=secondary_range, sill=secondary_sill, nugget=secondary_nugget)
+class PrimaryModel(DummyModel):
 
-cross_sill = 45000  # between 50000 and 40000
-cross_range = 30
-cross_nugget = 47000
+    def fit_h(self, h):
+        if len(h[0]) == 1:
+            # it's the target
+            return np.matrix([
+                [134229],
+                [102334]
+                ])
+        return np.matrix([
+        [605000,99155],
+        [99155,605000]
+        ])
 
-CROSS_MODEL = SphericalModel(fit_range=cross_range, sill=cross_sill, nugget=cross_nugget)
+
+class SecondaryModel(DummyModel):
+
+    def fit_h(self, h):
+        return np.matrix([
+        [107000, 49623, 57158],
+        [49623, 107000, 45164],
+        [57158, 45164, 107000]
+        ])
+
+
+class CrossModel(DummyModel):
+
+    def fit_h(self, h):
+        if len(h[0]) == 1:
+            # it's the target
+            return np.matrix([
+                [70210],
+                [52697],
+                [75887]
+                ])
+        return np.matrix([
+        [137000, 49715, 57615],
+        [49715, 137000, 45554]
+        ])
+
+
+PRIMARY_MODEL = PrimaryModel()
+SECONDARY_MODEL = SecondaryModel()
+CROSS_MODEL = CrossModel()
 
 ####################################
 # Kriging
@@ -83,10 +118,10 @@ CROSS_MODEL = SphericalModel(fit_range=cross_range, sill=cross_sill, nugget=cros
 # compatible with meshgrid.
 # Numpy linspace is another good option if you have a total
 # resolution you want rather than a specific step size. 
-TARGET_X_COORDS = np.arange(start=-1, stop=1, step=1)  
+TARGET_X_COORDS = np.arange(start=0, stop=1, step=1)  
 
 # specify target y coordinates to be used in a Numpy meshgrid
-TARGET_Y_COORDS = np.arange(start=-1, stop=1, step=1) 
+TARGET_Y_COORDS = np.arange(start=0, stop=1, step=1) 
 
 ####################################
 # Plots
