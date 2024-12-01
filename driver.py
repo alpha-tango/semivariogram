@@ -46,17 +46,6 @@ def main():
         Semivariogram displays a semivariogram using the selected model, or all models.
         """)
 
-    parser.add_argument('--bin_method', choices=['config', 'fixed_width', 'equal_points', 'raw'],
-        help="""
-        Choose a method to bin the data before modeling semivariance.
-        `config`: in the appropriate config file, set a list of bin maxes.
-        `fixed_width`: bins are of fixed width. Must be used with `--bin_width` argument.
-        `equal_points`: bins have an equal number of points. Defaults to square 
-            root of the number of data points, or can be used with `--points_per_bin` argument.
-        `raw`: does not bin the data at all.
-        """
-        )
-
     parser.add_argument("--bin_width", type=float, 
         help="""
         If set, this forces the semivariogram to use the specified, fixed bin width.
@@ -66,19 +55,6 @@ def main():
         help="""
         If used with `--bin_method=equal_points`, this forces the semivariogram to use the
         specified number of points per bin.
-        """)
-
-    parser.add_argument("--range", type=float,
-        help="""
-        If used in 'semivariogram' setting, this sets the range the model will
-        be fitted on.
-        """)
-
-    parser.add_argument("--model",
-        choices=['exponential', 'hw6', 'isotonic', 'linear'],
-        help="""
-        Select a model to fit the semivariogram on, when used in 'semivariogram' mode.
-        Choose a single model or 'all'. Currently must be used with "--range" setting.
         """)
     # TODO: add option to run all models
 
@@ -92,9 +68,9 @@ def main():
     workflow_config = importlib.import_module(f'config.{options.config_file}')
     print(workflow_config)
 
-    if options.bin_method == 'fixed_width':
+    if workflow_config.BIN_METHOD == 'fixed_width':
         assert options.bin_width is not None
-    elif options.bin_method == 'config':
+    elif workflow_config.BIN_METHOD == 'config':
         assert workflow_config.BIN_MAXES is not None
 
     ################################
@@ -222,21 +198,19 @@ def main():
 
     # First: Bin the data according to the user's choice
 
-    if options.bin_method == 'fixed_width':  # use a fixed fixed bin size (HW5 Q2.ii)
-
+    if workflow_config.BIN_METHOD == 'fixed_width':  # use a fixed fixed bin size (HW5 Q2.ii)
         binner = binners.EqualWidthBinner(bin_width=options.bin_width)
         bins_df = binner.bins(pair_df)
 
-    elif options.bin_method == 'config':  # use a custom set of bins (HW5 Q2.iii)
-
+    elif workflow_config.BIN_METHOD == 'config':  # use a custom set of bins (HW5 Q2.iii)
         binner = binners.CustomBinner(workflow_config.BIN_MAXES)
         bins_df = binner.bins(pair_df=pair_df)
         
-    elif options.bin_method == 'equal_points':  # each bin has a fixed number of points (HW5 Q2.i)
+    elif workflow_config.BIN_METHOD == 'equal_points':  # each bin has a fixed number of points (HW5 Q2.i)
         binner = binners.EqualPointBinner(points_per_bin=options.points_per_bin)
         bins_df = binner.bins(pair_df=pair_df)
 
-    elif options.bin_method == 'raw':
+    elif workflow_config.BIN_METHOD == 'raw':
         binner = binners.RawBinner()
         bins_df = binner.bins(pair_df=pair_df)
 
@@ -271,25 +245,24 @@ def main():
     ###########################################################
 
     # check that the user has given a range to fit the model on
-    if not options.range:
+    if not workflow_config.RANGE:
         print("Must specify range.")
         return 1
 
     # model the binned data
-    if not options.model:
+    if not workflow_config.MODEL:
         print("You must specify a model")
         return 1
 
     # fit the model to the data
-    model_class = models.get_model(options.model)
-    model = model_class(data_df=bins_df, fit_range=options.range)
+    model = workflow_config.MODEL
 
     # make semivariogram
     if options.plot == 'semivariogram':
 
-        plot_model = model.plottable()
+        plot_model = model.plottable(bins_df['h'])
         plot = plots.Semivariogram(
-                    a=options.range,
+                    a=workflow_config.RANGE,
                     omega=model.sill,
                     model_name=model.name,
                     model_lag=plot_model['h'],
