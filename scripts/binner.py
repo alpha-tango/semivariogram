@@ -157,20 +157,20 @@ class EqualPointBinner:
                 SELECT
                     h AS lag_distance,
                     semivariance AS semivariance,
-                    CEIL(ROW_NUMBER() OVER (ORDER BY h ASC) / {self.points_per_bin}) * {self.points_per_bin} AS bin
+                    CEIL(ROW_NUMBER() OVER (ORDER BY h ASC) / {self.points_per_bin}) * {self.points_per_bin} AS bin_id
                 FROM 
                     pair_df
             )
 
             SELECT
-                bin,
+                MAX(lag_distance) AS bin,
                 AVG(lag_distance) AS h,
                 AVG(semivariance) AS semivariance,
                 STDDEV_POP(semivariance) AS stddev,
                 COUNT() AS n
             FROM
                 bins
-            GROUP BY bin
+            GROUP BY bin_id
             ORDER BY 1
             """
 
