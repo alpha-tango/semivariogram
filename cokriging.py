@@ -180,6 +180,43 @@ def main():
 
     # astonishingly, this correct so far
 
+    ############################################
+    # Produce estimates
+    ############################################
+
+    # get known sample point values and stack to matrix
+    primary_actual = known_sample_primary[[workflow_config.PRIMARY_VAR_NAME]].values
+    secondary_actual = known_sample_secondary[[workflow_config.SECONDARY_VAR_NAME]].values
+    V = np.vstack((primary_actual, secondary_actual))
+    print("\tACTUAL KNOWN")
+    print(V)
+
+    # produce estimate by multiplying with weights
+    # (Lagrange parameters removed)
+    V_est = np.matmul(np.rot90(V), W[:-2])
+    print("\tESTIMATES")
+    print(V_est)
+
+    ############################################
+    # Produce error variance
+    #############################################
+
+    combined_error = np.matmul(np.rot90(D[:-2]), W[:-2])
+    lagrange_1 = W[-2]
+    lagrange_2 = W[-1]
+    sill = 500000  # TODO  # variance / stddev^2 1/n sum((xi - m)^2)
+
+    print("\tERROR VARIANCE")
+    print(combined_error)
+    print(lagrange_1)
+    print(lagrange_2)
+    print(sill)
+
+    error_variance = std_dev - (lagrange_1 + lagrange_2) - combined_error
+    print(error_variance)
+
+    textbook_value = 681549
+    print(textbook_value - error_variance)
 
 
 
