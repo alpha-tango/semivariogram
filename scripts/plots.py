@@ -260,6 +260,7 @@ class IsotonicSmooth():
         pair_count = len(self.pair_df['h'])
 
         for i,j in enumerate(self.isotonic_y()):
+            
             if j == curr_sill:
                 counter += 1
             else:
@@ -270,6 +271,7 @@ class IsotonicSmooth():
                 self.sill = curr_sill
                 self.range = curr_range
                 return
+            
             curr_sill = j
         
         self.sill = curr_sill
@@ -322,6 +324,7 @@ class Semivariogram:
         self.model_y = model_semivariance
         self.raw_df = raw_df
         self.fig, self.ax = plt.subplots(nrows=2, ncols=1, sharex=True, height_ratios=[3,1])
+        self.fig.tight_layout()
         self.imname = imname
         self.h_units = h_units
 
@@ -343,6 +346,7 @@ class Semivariogram:
         # N display
         self.ax[1].set_xlabel(f"Distance ({self.h_units})")
         self.ax[1].set_ylabel("Points per Bin")
+        self.ax[1].set_title("Bin Maximums")
 
     def textbox(self):
         """
@@ -354,7 +358,7 @@ class Semivariogram:
             f"sill = {self.omega:.1f}",
             f"range = {self.a}"
             ))
-        self.ax[0].text(0.75, 0.25, textstr, transform=self.ax[0].transAxes, fontsize=10,
+        self.ax[0].text(0.75, 0.75, textstr, transform=self.ax[0].transAxes, fontsize=10,
             verticalalignment='top', bbox=props)
 
     def scatter_points(self):
@@ -390,6 +394,9 @@ class Semivariogram:
         Plot the number of points per bin.
         """
         self.ax[1].scatter(self.raw_df['h'], self.raw_df['n'])
+        height = max(self.raw_df['n'].values)
+        for h in self.raw_df['bin']:
+            self.ax[1].bar(x=h, height=height, color='lightgray')
 
     def range_sill(self):
         """
