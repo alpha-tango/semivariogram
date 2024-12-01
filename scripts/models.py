@@ -45,7 +45,7 @@ class SemivarianceModel:
         # and we only want to calculate it once
         self.sill = sill
         self.name = self.get_name()
-        self.nugget = 0
+        self.nugget = nugget
         
         # TODO: add a column validity check above the sill setter
 
@@ -59,17 +59,13 @@ class SemivarianceModel:
         """
         pass
 
-    def max_h(self, data_df):
+    def max_h(self, h):
         """
-        Find the maximum lag in the data
+        Find the maximum lag in the data, or the range,
+        whichever is greater.
         """
-        max_lag_select = f"""
-        SELECT
-            MAX(h) as max_h
-        FROM data_df
-        WHERE h >= {self.a}
-        """
-        return duckdb.sql(max_lag_select).fetchnumpy()['max_h'][0]
+
+        return max(h) if max(h) > self.a else self.a
 
     def fit_h(self, h):
         """
@@ -78,15 +74,20 @@ class SemivarianceModel:
         `h` is a vector of lags. If no argument is passed, then 
         the model's data is used.
         """
-        pass 
+        pass
 
-    def plottable(self):
+    def fit(self, h):
+        """
+        """
+
+
+    def plottable(self, h):
         """
         Fit a series of `h` values.
         Returns a dataframe with columns `h` and `semivariance`,
-        with the same number of datapoints as the input h.
+        with arbitrarily 100 data points.
         """
-        plottable_h = np.linspace(0, self.max_h(self.data), 100)
+        plottable_h = np.linspace(0, self.max_h(h), 100)
         return {
             'h': plottable_h,
             'semivariance': self.fit_h(plottable_h)
@@ -122,7 +123,8 @@ class ExponentialModel(SemivarianceModel):
         Default is to use the model data, but you can pass in 
         any vector of distances. 
         """
-        return self.sill * (1 - np.exp( -h / self.a))
+        print(h)
+        return self.sill * (1 - np.exp( -h / self.a)) + self.nugget
 
     def get_name(self):
         return 'Exponential'
@@ -138,10 +140,12 @@ class SphericalModel(SemivarianceModel):
         a = range,
         h = lag.
         """
-        if h >= self.range:
-            return self.sill + self.nugget
-        else:
-            return self.sill * ((3/2) * (h/self.a) - (1/2) * (h/self.a)**3) + nugget
+
+        spherical = lambda x: self.sill + self.nugget if x >= self.a else self.sill * ((3/2) * (x/self.a) - (1/2) * (x/self.a)**3) + self.nugget
+        
+        # need to vectorize due to the boolean
+        vectorized_spherical = np.vectorize(spherical)
+        return vectorized_spherical(h)
 
 
 ###########################
