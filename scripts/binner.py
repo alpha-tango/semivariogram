@@ -72,8 +72,8 @@ class CustomBinner:
         binner = f"""
         SELECT
             bin,
-            AVG(h) AS h,
-            AVG(semivariance) AS semivariance,
+            MEDIAN(h) AS h,
+            MEDIAN(semivariance) AS semivariance,
             STDDEV_POP(semivariance) AS stddev,
             COUNT() AS n
         FROM pair_df
@@ -113,8 +113,8 @@ class EqualWidthBinner:
 
         SELECT
             bin,
-            AVG(lag_distance) AS h,
-            AVG(semivariance) AS semivariance,
+            MEDIAN(lag_distance) AS h,
+            MEDIAN(semivariance) AS semivariance,
             STDDEV_POP(semivariance) AS stddev,
             COUNT() AS n
         FROM bins
@@ -164,8 +164,8 @@ class EqualPointBinner:
 
             SELECT
                 MAX(lag_distance) AS bin,
-                AVG(lag_distance) AS h,
-                AVG(semivariance) AS semivariance,
+                MEDIAN(lag_distance) AS h,
+                MEDIAN(semivariance) AS semivariance,
                 STDDEV_POP(semivariance) AS stddev,
                 COUNT() AS n
             FROM
