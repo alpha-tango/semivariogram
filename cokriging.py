@@ -1,9 +1,9 @@
 #!/usr/bin/python3
 import argparse
 import importlib
-# import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 import numpy as np
-# import pandas as pd
+import pandas as pd
 from scipy.spatial import distance_matrix
 
 # import scripts.models as models
@@ -23,6 +23,11 @@ def main():
         help="""
         Specify the name of the config file to use. Ex: if you have 'config/myfile.py',
         this argument should be `myfile`
+        """)
+
+    parser.add_argument("--test", action=argparse.BooleanOptionalAction,
+        help="""
+        Test with a small subset of data.
         """)
 
     try:
@@ -81,35 +86,40 @@ def main():
     primary_coords = known_sample_primary[['x', 'y']].values
     n = len(primary_coords)
     H_primary = distance_matrix(primary_coords, primary_coords, p=2)
-    print("\tH PRIMARY")
-    print(H_primary.shape)
-    print(H_primary)
+    if options.test:
+        print("\tH PRIMARY")
+        print(H_primary.shape)
+        print(H_primary)
 
     # SECONDARY - SECONDARY
     secondary_coords = known_sample_secondary[['x', 'y']].values
     m = len(secondary_coords)
     H_secondary = distance_matrix(secondary_coords, secondary_coords, p=2)
-    print("\tH SECONDARY")
-    print(H_secondary.shape)
-    print(H_secondary)
+    if options.test:
+        print("\tH SECONDARY")
+        print(H_secondary.shape)
+        print(H_secondary)
     
     # CROSS (PRIMARY - SECONDARY)
     H_cross = distance_matrix(primary_coords, secondary_coords, p=2)
-    print("\tH CROSS")
-    print(H_cross.shape)
-    print(H_cross)
+    if options.test:
+        print("\tH CROSS")
+        print(H_cross.shape)
+        print(H_cross)
 
     # PRIMARY - TARGET
     H_0_primary = distance_matrix(primary_coords, target_locations, p=2)
-    print("\tH PRIMARY TARGET")
-    print(H_0_primary.shape)
-    print(H_0_primary)
+    if options.test:
+        print("\tH PRIMARY TARGET")
+        print(H_0_primary.shape)
+        print(H_0_primary)
 
     # SECONDARY - TARGET
     H_0_secondary = distance_matrix(secondary_coords, target_locations, p=2)
-    print("\tH SECONDARY TARGET")
-    print(H_0_secondary.shape)
-    print(H_0_secondary)
+    if options.test:
+        print("\tH SECONDARY TARGET")
+        print(H_0_secondary.shape)
+        print(H_0_secondary)
 
     ############################################
     # Calculate covariances / semivariances
@@ -117,30 +127,35 @@ def main():
 
     # PRIMARY - PRIMARY
     C_primary = primary_model.fit_h(H_primary) 
-    print("\tC PRIMARY")
-    print(C_primary)
+    if options.test:
+        print("\tC PRIMARY")
+        print(C_primary)
 
     # SECONDARY - SECONDARY
-    C_secondary = secondary_model.fit_h(H_secondary) 
-    print("\tC SECONDARY")
-    print(C_secondary)
+    C_secondary = secondary_model.fit_h(H_secondary)
+    if options.test: 
+        print("\tC SECONDARY")
+        print(C_secondary)
 
     # CROSS (PRIMARY - SECONDARY)
     C_cross = cross_model.fit_h(H_cross)
-    print("\tC CROSS")
-    print(C_cross)
+    if options.test:
+        print("\tC CROSS")
+        print(C_cross)
 
     # PRIMARY - TARGET
     C_0_primary = primary_model.fit_h(H_0_primary)
-    print("\tC PRIMARY TARGET")
-    print(C_0_primary)
+    if options.test:
+        print("\tC PRIMARY TARGET")
+        print(C_0_primary)
 
     # SECONDARY_TARGET
     # NB: use the CROSS model not secondary 
     # bc we want to estimate the primary value
     C_0_secondary = cross_model.fit_h(H_0_secondary)
-    print("\tC SECONDARY TARGET")  
-    print(C_0_secondary)
+    if options.test:
+        print("\tC SECONDARY TARGET")  
+        print(C_0_secondary)
 
     ############################################
     # Set up C matrix
@@ -159,24 +174,31 @@ def main():
     r = np.hstack((np.zeros((1,n)), np.ones((1,m)), np.zeros((1,2))))
 
     C = np.vstack((q,b,x,r))
-    print("\tFULL C MATRIX")
-    print(C)
+
+    if options.test:
+        print("\tFULL C MATRIX")
+        print(C)
     
     ############################################
     # Set up D matrix
     ############################################
 
-    D = np.vstack((C_0_primary, C_0_secondary, 1, 0))
-    print("\tFULL D MATRIX")
-    print(D)
+    z = len(target_locations)
+    D = np.vstack((C_0_primary, C_0_secondary, np.ones((1,z)), np.zeros((1,z))))
+
+    if options.test:
+        print("\tFULL D MATRIX")
+        print(D)
 
     ############################################
     # Solve for weights matrix
     ############################################
 
     W = np.matmul(np.linalg.inv(C), D)
-    print("\tWEIGHTS")
-    print(W)
+
+    if options.test:
+        print("\tWEIGHTS")
+        print(W)
 
     # astonishingly, this correct so far
 
@@ -188,41 +210,80 @@ def main():
     primary_actual = known_sample_primary[[workflow_config.PRIMARY_VAR_NAME]].values
     secondary_actual = known_sample_secondary[[workflow_config.SECONDARY_VAR_NAME]].values
     V = np.vstack((primary_actual, secondary_actual))
-    print("\tACTUAL KNOWN")
-    print(V)
+
+    if options.test:
+        print("\tACTUAL KNOWN")
+        print(V)
 
     # produce estimate by multiplying with weights
     # (Lagrange parameters removed)
     V_est = np.matmul(np.rot90(V), W[:-2])
-    print("\tESTIMATES")
-    print(V_est)
+    if options.test:
+        print("\tESTIMATES")
+        print(V_est)
 
     ############################################
     # Produce error variance
     #############################################
 
-    combined_error = np.matmul(np.rot90(D[:-2]), W[:-2])
-    lagrange_1 = W[-2]
-    lagrange_2 = W[-1]
-    sill = 500000  # TODO  # variance / stddev^2 1/n sum((xi - m)^2)
+    # combined_error = np.matmul(np.rot90(D[:-2]), W[:-2])
+    # lagrange_1 = W[-2]
+    # lagrange_2 = W[-1]
+    # sill = 500000  # TODO  # variance / stddev^2 1/n sum((xi - m)^2)
 
-    print("\tERROR VARIANCE")
-    print(combined_error)
-    print(lagrange_1)
-    print(lagrange_2)
-    print(sill)
+    # print("\tERROR VARIANCE")
+    # print(combined_error)
+    # print(lagrange_1)
+    # print(lagrange_2)
+    # print(sill)
 
-    error_variance = std_dev - (lagrange_1 + lagrange_2) - combined_error
-    print(error_variance)
+    # error_variance = sill - (lagrange_1 + lagrange_2) - combined_error
+    # print(error_variance)
 
-    textbook_value = 681549
-    print(textbook_value - error_variance)
+    #############################################
+    # Plot data
+    #############################################
+
+    # reshape estimates V_est into meshgrid format
+
+    n = target_X.shape[0]
+    m = target_X.shape[1]
+
+    if options.test:
+        print(target_Y)
+        print(target_Y.ravel())
+        print(target_Y.ravel().reshape((n,m)))
+
+    E = V_est[0].reshape((n,m))
+    
+    # make a colormap plot of the estimates
+    fig, ax = plt.subplots()
+    a = ax.pcolormesh(
+            target_X,
+            target_Y,
+            E,
+            vmin=E.min(),
+            vmax=E.max())
+
+    plt.colorbar(a)  # show the color bar to the right
+    ax.scatter(known_sample_primary['x'], known_sample_primary['y'],color='red', marker='x', label="Primary Sample Point")  # plot known points on top
+    ax.scatter(known_sample_secondary['x'], known_sample_secondary['y'],color='black', marker='+', label="Secondary Sample Point")
+    plt.title(f"Estimated values ({workflow_config.UNITS}) for {workflow_config.PRIMARY_VAR_NAME}")
+    plt.savefig(f'images/{workflow_config.IM_TAG}_cokriging.png')
+
+    # make a colormap plot of the error variances
+    # fig, ax = plt.subplots()
+    # a = ax.pcolormesh(x_df, y_df, error_df, vmin=error_variances.min(), vmax=error_variances.max())
+    # plt.colorbar(a)  # show color bar
+    # ax.scatter(raw_df['x'], raw_df['y'],color='red', label="Sampled Point")  # plot known points on top
+
+    # plt.title(f"Error variance for {workflow_config.PRIMARY_VAR_NAME}")
+    # plt.savefig(f'images/{workflow_config.IM_TAG}_cokriged_error.png')
+
+    workflow_config.co_kriging_custom_plots(known_sample_primary, known_sample_secondary, target_X, target_Y, E)
 
 
-
-
-
-    return 1
+    return 0
 
 if __name__ == "__main__":
     main()
