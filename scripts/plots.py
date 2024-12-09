@@ -315,10 +315,11 @@ class Semivariogram:
         'n': count of points in that bin
     """
 
-    def __init__(self, a, omega, model_name, model_lag, model_semivariance, 
-                        raw_df, imname, h_units):
+    def __init__(self, a, omega, nugget, model_name, model_lag, model_semivariance, 
+                        raw_df, imname, display_var_name, h_units):
         self.a = a  # range
         self.omega = omega  # sill
+        self.nugget = nugget
         self.model_name = model_name
         self.model_x = model_lag
         self.model_y = model_semivariance
@@ -326,6 +327,7 @@ class Semivariogram:
         self.fig, self.ax = plt.subplots(nrows=2, ncols=1, sharex=True, height_ratios=[3,1])
         self.fig.tight_layout()
         self.imname = imname
+        self.display_var_name = display_var_name
         self.h_units = h_units
 
     def labels(self):
@@ -335,7 +337,7 @@ class Semivariogram:
         """
 
         # Main Semivariogram
-        title_str = f'Semivariogram: {self.model_name} model'
+        title_str = f'Semivariogram: {self.model_name} model - {self.display_var_name}'
         x_str = f'Distance ({self.h_units})'
         y_str = 'Semivariance'
 
@@ -355,8 +357,9 @@ class Semivariogram:
         """
         props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
         textstr = '\n'.join((
-            f"sill = {self.omega:.1f}",
-            f"range = {self.a}"
+            f"sill = {self.omega:.2f}",
+            f"range = {self.a}",
+            f"nugget = {self.nugget}"
             ))
         self.ax[0].text(0.75, 0.75, textstr, transform=self.ax[0].transAxes, fontsize=10,
             verticalalignment='top', bbox=props)

@@ -229,6 +229,7 @@ def main():
 
         n_bins = len(set(bins_df['bin']))
 
+
         plot = plots.RawSemivariogram(imname=workflow_config.IM_TAG,
                                         pair_df=pair_df,
                                         avg_df=bins_df,
@@ -263,11 +264,13 @@ def main():
         plot_model = model.plottable(bins_df['h'])
         plot = plots.Semivariogram(
                     a=workflow_config.RANGE,
-                    omega=model.sill,
+                    omega=workflow_config.SILL,
+                    nugget=workflow_config.NUGGET,
                     model_name=model.name,
                     model_lag=plot_model['h'],
                     model_semivariance=plot_model['semivariance'],
                     raw_df=bins_df,
+                    display_var_name=workflow_config.VAR_DISPLAY_NAME,
                     imname=workflow_config.IM_TAG,
                     h_units=workflow_config.H_UNITS
                     )
