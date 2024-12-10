@@ -27,7 +27,13 @@ def main():
 
     parser.add_argument("--test", action=argparse.BooleanOptionalAction,
         help="""
-        Test with a small subset of data.
+        Test Kriging with a small subset of data.
+        """)
+
+    parser.add_argument("--validation", action=argparse.BooleanOptionalAction,
+        help="""
+        Validate the results of Kriging with a holdout set of known sample points
+        that you define in the config file.
         """)
 
     try:
@@ -59,15 +65,22 @@ def main():
     known_sample_secondary = workflow_config.secondary_data()
     print(f"Found {len(known_sample_secondary)} secondary data points.")
 
-    # Construct meshgrids of target x, y locations for which we
-    # want to estimate values for. 
-    # This format will be useful later when we plot the output.
-    target_X, target_Y = np.meshgrid(workflow_config.TARGET_X_COORDS, workflow_config.TARGET_Y_COORDS)
+    if options.validation:
+        validation_data = workflow_config.validation_data()
+        target_x = validation_data['x']
+        target_y = validation_data['y']
+        target_locations = validation_data[['x', 'y']]
+        print(f"Found {len(target_locations)} validation locations to estimate.")
+    else:
+        # Construct meshgrids of target x, y locations for which we
+        # want to estimate values for. 
+        # This format will be useful later when we plot the output.
+        target_X, target_Y = np.meshgrid(workflow_config.TARGET_X_COORDS, workflow_config.TARGET_Y_COORDS)
 
-    # Turn the meshgrids into a list of [x,y] coordinates
-    # For use in calculation
-    target_locations = np.vstack([target_X.ravel(), target_Y.ravel()]).T
-    print(f"Found {len(target_locations)} target locations to estimate.")
+        # Turn the meshgrids into a list of [x,y] coordinates
+        # For use in calculation
+        target_locations = np.vstack([target_X.ravel(), target_Y.ravel()]).T
+        print(f"Found {len(target_locations)} target locations to estimate.")
 
     ################################################
     # Get models
@@ -200,13 +213,42 @@ def main():
         print("\tWEIGHTS")
         print(W)
 
-    # astonishingly, this correct so far
+    ####### Correct negative weights. ##########
+
+    # take weights except for Lagrange multipliers 
+    Q = W[:-2] 
+    
+    # set negative values to zero
+    Q[Q < 0] = 0
+
+    # the weights no longer sum to 1 at each target location
+    # so we now have to renormalize for that
+
+    # sum each set of weights to see what they add up to
+    # then put over 1 to scale each element of the weights matrix
+    x = (1 / Q.sum(axis=0))
+
+    # iterate through each row of the weights
+    rows = len(Q)
+    for i in range(rows):
+
+        # set each row equal to the elementwise product of the row and x
+        Q[i] = np.multiply(Q[i], x)
+
+    # pull out the lagrange multipliers
+    lagrange_1 = W[-2]
+    lagrange_2 = W[-1]
+
+    # restack the normalized weights with the lagrange multipliers
+    W = np.vstack((Q, lagrange_1, lagrange_2))
+
 
     ############################################
     # Produce estimates
     ############################################
 
     # get known sample point values and stack to matrix
+    # these are the untransformed points
     primary_actual = known_sample_primary[[workflow_config.PRIMARY_VAR_NAME]].values
     secondary_actual = known_sample_secondary[[workflow_config.SECONDARY_VAR_NAME]].values
     V = np.vstack((primary_actual, secondary_actual))
@@ -226,61 +268,102 @@ def main():
     # Produce error variance
     #############################################
 
-    # combined_error = np.matmul(np.rot90(D[:-2]), W[:-2])
-    # lagrange_1 = W[-2]
-    # lagrange_2 = W[-1]
-    # sill = 500000  # TODO  # variance / stddev^2 1/n sum((xi - m)^2)
+    # via Cailin: std= mu1+mu2+(sum(wi*ui)+sum(wj*vj))
 
-    # print("\tERROR VARIANCE")
-    # print(combined_error)
-    # print(lagrange_1)
-    # print(lagrange_2)
-    # print(sill)
+    # Var{R} = Cov{V(io)V(io)} + mu1 + mu2 - sum(aiCov{VoVj} - sum(bjCov{VoUj}))
+    # Var{R} = (Cov of primary variable = sill) + mu1 + mu2 - (primary error) - (secondary/cross error)
 
-    # error_variance = sill - (lagrange_1 + lagrange_2) - combined_error
-    # print(error_variance)
+    # Hadamard multiplication multiply each weight by target covariance
+    # Then sum vertically
+    # This excludes the Lagrange multipliers
+    # This sums together primary error and secondary / cross error
+    combined_error = np.multiply(W[:-2], D[:-2]).sum(axis=0)  # vector of length j for j target locations
+
+    # pull the first lagrange multiplier
+    lagrange_1 = W[-2]  # vector of length j for j target locations
+
+    # pull the second lagrange multiplier
+    lagrange_2 = W[-1]  # vector of length j for j target locations
+
+    # make of vector representing Cov. of primary variable = sill = Cov{V(io)V(io)}
+    sill = np.ones(len(target_locations)) * workflow_config.primary_sill
+
+    # sum the weight and target components for each target location
+    # then subtract from the sill and lagrange multipliers
+
+    error_variances = sill + lagrange_1 + lagrange_2 - combined_error
+
+    if options.test:
+        print("\tERROR VARIANCES")
+        print(error_variances)
+
+    ## Not quite working
+    ## Doing a simple inverse transform doesn't preserve unbiasedness
+
+    # de-transform error variances
+    # error_variances = np.exp(error_variances)
+
+    # if options.test:
+    #     print("\tERROR VARIANCES")
+    #     print(error_variances)
 
     #############################################
     # Plot data
     #############################################
 
-    # reshape estimates V_est into meshgrid format
+    if not options.validation:
+        # reshape estimates V_est into meshgrid format
 
-    n = target_X.shape[0]
-    m = target_X.shape[1]
+        n = target_X.shape[0]
+        m = target_X.shape[1]
 
-    if options.test:
-        print(target_Y)
-        print(target_Y.ravel())
-        print(target_Y.ravel().reshape((n,m)))
+        if options.test:
+            print(target_Y)
+            print(target_Y.ravel())
+            print(target_Y.ravel().reshape((n,m)))
 
-    E = V_est[0].reshape((n,m))
-    
-    # make a colormap plot of the estimates
-    fig, ax = plt.subplots()
-    a = ax.pcolormesh(
-            target_X,
-            target_Y,
-            E,
-            vmin=E.min(),
-            vmax=E.max())
+        E = V_est[0].reshape((n,m))
+        R = error_variances.reshape((n,m))
+        
+        # make a colormap plot of the estimates
+        fig, ax = plt.subplots()
+        a = ax.pcolormesh(
+                target_X,
+                target_Y,
+                E,
+                vmin=E.min(),
+                vmax=E.max())
 
-    plt.colorbar(a)  # show the color bar to the right
-    ax.scatter(known_sample_primary['x'], known_sample_primary['y'],color='red', marker='x', label="Primary Sample Point")  # plot known points on top
-    ax.scatter(known_sample_secondary['x'], known_sample_secondary['y'],color='black', marker='+', label="Secondary Sample Point")
-    plt.title(f"Estimated values ({workflow_config.UNITS}) for {workflow_config.PRIMARY_VAR_NAME}")
-    plt.savefig(f'images/{workflow_config.IM_TAG}_cokriging.png')
+        plt.colorbar(a)  # show the color bar to the right
+        ax.scatter(known_sample_primary['x'], known_sample_primary['y'],color='red', marker='x', label="Primary Sample Point")  # plot known points on top
+        ax.scatter(known_sample_secondary['x'], known_sample_secondary['y'],color='black', marker='+', label="Secondary Sample Point")
+        plt.title(f"Estimated values ({workflow_config.UNITS}) for {workflow_config.PRIMARY_VAR_NAME}")
+        plt.savefig(f'images/{workflow_config.IM_TAG}_cokriging.png')
 
-    # make a colormap plot of the error variances
-    # fig, ax = plt.subplots()
-    # a = ax.pcolormesh(x_df, y_df, error_df, vmin=error_variances.min(), vmax=error_variances.max())
-    # plt.colorbar(a)  # show color bar
-    # ax.scatter(raw_df['x'], raw_df['y'],color='red', label="Sampled Point")  # plot known points on top
+        # make a colormap plot of the error variances
+        fig, ax = plt.subplots()
+        a = ax.pcolormesh(target_X,
+                          target_Y,
+                          R,
+                          vmin=R.min(),
+                          vmax=R.max())
+        plt.colorbar(a)  # show color bar
+        ax.scatter(known_sample_primary['x'], known_sample_primary['y'],color='red', marker='x', label="Primary Sample Point")  # plot known points on top
+        ax.scatter(known_sample_secondary['x'], known_sample_secondary['y'],color='black', marker='+', label="Secondary Sample Point")
 
-    # plt.title(f"Error variance for {workflow_config.PRIMARY_VAR_NAME}")
-    # plt.savefig(f'images/{workflow_config.IM_TAG}_cokriged_error.png')
+        plt.title(f"Error variance for {workflow_config.PRIMARY_VAR_NAME}")
+        plt.savefig(f'images/{workflow_config.IM_TAG}_cokriged_error.png')
 
-    workflow_config.co_kriging_custom_plots(known_sample_primary, known_sample_secondary, target_X, target_Y, E)
+        workflow_config.co_kriging_custom_plots(known_sample_primary, known_sample_secondary, target_X, target_Y, E, R)
+
+    else:  # we are doing validation
+        validation_data['estimate'] = V_est[0]
+        validation_data['difference'] = validation_data['estimate'] - validation_data[workflow_config.PRIMARY_VAR_NAME]
+        print(validation_data)
+        print(np.mean(validation_data['difference']))
+        print(np.std(validation_data['difference']))
+        print(max(validation_data['difference']))
+        workflow_config.co_kriging_validation_plots(known_sample_primary, known_sample_secondary, validation_data)
 
 
     return 0
