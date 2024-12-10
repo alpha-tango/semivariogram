@@ -441,4 +441,142 @@ class Semivariogram:
         self.fig.savefig(f'images/{self.imname}_semivariogram.png')
 
 
+class CrossSemivariogram:
+    """
+    All the code to make a semivariogram.
+
+    Some column names are hard-coded, so not wholly reusable at this point.
+
+    Raw_df must have columns ['h', 'semivariance', 'n'] for the binned data.
+        'h': lag distance (avg per bin)
+        'semivariance': semivariance (avg per bin)
+        'n': count of points in that bin
+    """
+
+    def __init__(self, a, omega, nugget, model_name, model_lag, model_semivariance, 
+                        raw_df, imname, display_primary_var, display_secondary_var, h_units):
+        self.a = a  # range
+        self.omega = omega  # sill
+        self.nugget = nugget
+        self.model_name = model_name
+        self.model_x = model_lag
+        self.model_y = model_semivariance
+        self.raw_df = raw_df
+        self.fig, self.ax = plt.subplots(nrows=2, ncols=1, sharex=True, height_ratios=[3,1])
+        self.fig.tight_layout()
+        self.imname = imname
+        self.display_primary_var = display_primary_var
+        self.display_secondary_var = display_secondary_var
+        self.h_units = h_units
+
+    def labels(self):
+        """
+        Label the axes appropriately.
+        TODO: add in unit for x-axis
+        """
+
+        # Main Semivariogram
+        title_str = f'Semivariogram: {self.model_name} model\nPrimary {self.display_primary_var}; Secondary {self.display_secondary_var}'
+        x_str = f'Distance ({self.h_units})'
+        y_str = 'Semivariance'
+
+        self.ax[0].set_title(title_str)
+        self.ax[0].set_xlabel(x_str)
+        self.ax[0].set_ylabel(y_str)
+
+        # N display
+        self.ax[1].set_xlabel(f"Distance ({self.h_units})")
+        self.ax[1].set_ylabel("Points per Bin")
+        self.ax[1].set_title("Bin Maximums")
+
+    def textbox(self):
+        """
+        Display a text box with the range (a) and sill (omega)
+        specified.
+        """
+        props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
+        textstr = '\n'.join((
+            f"sill = {self.omega:.2f}",
+            f"range = {self.a}",
+            f"nugget = {self.nugget}"
+            ))
+        self.ax[0].text(0.75, 0.75, textstr, transform=self.ax[0].transAxes, fontsize=10,
+            verticalalignment='top', bbox=props)
+
+    def scatter_points(self):
+        """
+        Add in scatterplot of points used to fit the model.
+        """
+        self.ax[0].scatter(
+            self.raw_df['h'],
+            self.raw_df['semivariance'],
+            color='red',
+            marker='x')
+
+    def confidence_intervals(self):
+        """
+        Shaded bar for 95% confidence.
+        Using equation from class:
+        semivar_mean_in_bin +- 1.96 * std_dev_semivar_in_bin / sqrt(n_pairs_in_bin)
+        """
+        adj = 1.96 * self.raw_df['stddev'] / self.raw_df['n'] ** (1/2)
+        y1 = self.raw_df['semivariance'] + adj
+        y2 = self.raw_df['semivariance'] - adj
+
+        self.ax[0].fill_between(self.raw_df['h'], y1, y2, alpha=0.2)
+
+    def model_line(self):
+        """
+        Plot the modeled line.
+        """
+        self.ax[0].plot(self.model_x, self.model_y, color='black')
+
+    def bin_scatter(self):
+        """
+        Plot the number of points per bin.
+        """
+        self.ax[1].scatter(self.raw_df['h'], self.raw_df['n'])
+        height = max(self.raw_df['n'].values)
+        for h in self.raw_df['bin']:
+            self.ax[1].bar(x=h, height=height, color='lightgray')
+
+    def range_sill(self):
+        """
+        Plot the range and sill.
+        """
+        self.ax[0].axvline(x=self.a,
+                label=f'Range: {self.a}',
+                color='black',
+                linestyle='--')
+
+        self.ax[0].axhline(y=self.omega,
+            label=f"Sill: {self.omega}",
+            color='black',
+            linestyle=':')
+
+    def _build(self):
+        self.confidence_intervals()
+        self.scatter_points()
+        self.model_line()
+        self.bin_scatter()
+        self.textbox()
+        self.labels()
+        self.textbox()
+
+
+    def show_and_save(self):
+        """
+        Create and pop up the chart, then save. 
+        """
+        self._build()
+        plt.show()
+        self.fig.savefig(f'images/{self.imname}_cross_semivariogram.png')
+
+    def save(self):
+        """
+        Create and save chart without displaying.
+        """
+        self._build()
+        self.fig.savefig(f'images/{self.imname}_semivariogram.png')
+
 

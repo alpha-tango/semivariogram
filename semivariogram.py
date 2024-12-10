@@ -46,6 +46,11 @@ def main():
         Semivariogram displays a semivariogram using the selected model, or all models.
         """)
 
+    parser.add_argument("--cross", action=argparse.BooleanOptionalAction,
+        help="""
+        Make a cross semivariogram using the primary and secondary variables specified in the config file.
+        """)
+
     parser.add_argument("--bin_width", type=float, 
         help="""
         If set, this forces the semivariogram to use the specified, fixed bin width.
@@ -87,13 +92,13 @@ def main():
     ########################################
 
     # are we using secondary variables?
-    try:
+    if options.cross:
         raw_df['secondary']
         secondary_str = """
         near.secondary AS near_secondary,
         far.secondary AS far_secondary,
         """
-    except KeyError:
+    else:
         secondary_str = ""
 
     # join data to itself
@@ -146,9 +151,14 @@ def main():
                                             pair_df['far_y'])
 
     # find individual semivariance values for the pairs
-    pair_df['semivariance'] = stats.raw_semivariance(
+    if options.cross:
+            pair_df['semivariance'] = stats.raw_semivariance(
                                         pair_df['near_primary'],
-                                        pair_df['far_primary'])
+                                        pair_df['far_secondary'])
+    else:
+        pair_df['semivariance'] = stats.raw_semivariance(
+                                            pair_df['near_primary'],
+                                            pair_df['far_primary'])
 
     # sort df by distance
     pair_df.sort_values(by=['h'], axis=0, inplace=True)
@@ -159,6 +169,10 @@ def main():
     ########################################################################
 
     if options.plot == 'raw_histogram':
+
+        if options.cross:
+            print("Not yet implemented.")
+            return 1
         
         #########################################
         # Custom plots
@@ -229,12 +243,18 @@ def main():
 
         n_bins = len(set(bins_df['bin']))
 
-
-        plot = plots.RawSemivariogram(imname=workflow_config.IM_TAG,
-                                        pair_df=pair_df,
-                                        avg_df=bins_df,
-                                        n_bins=n_bins,
-                                        h_units=workflow_config.H_UNITS)
+        if options.cross:
+            plot = plots.RawCrossSemivariogram(imname=workflow_config.IM_TAG,
+                                pair_df=pair_df,
+                                avg_df=bins_df,
+                                n_bins=n_bins,
+                                h_units=workflow_config.H_UNITS)
+        else:
+            plot = plots.RawSemivariogram(imname=workflow_config.IM_TAG,
+                                            pair_df=pair_df,
+                                            avg_df=bins_df,
+                                            n_bins=n_bins,
+                                            h_units=workflow_config.H_UNITS)
 
         plot.show_and_save()
 
@@ -256,24 +276,42 @@ def main():
         return 1
 
     # fit the model to the data
-    model = workflow_config.MODEL
+    if options.cross:
+        model = workflow_config.CROSS_MODEL
+    else:
+        model = workflow_config.MODEL
 
     # make semivariogram
     if options.plot == 'semivariogram':
 
         plot_model = model.plottable(bins_df['h'])
-        plot = plots.Semivariogram(
-                    a=workflow_config.RANGE,
-                    omega=workflow_config.SILL,
-                    nugget=workflow_config.NUGGET,
-                    model_name=model.name,
-                    model_lag=plot_model['h'],
-                    model_semivariance=plot_model['semivariance'],
-                    raw_df=bins_df,
-                    display_var_name=workflow_config.VAR_DISPLAY_NAME,
-                    imname=workflow_config.IM_TAG,
-                    h_units=workflow_config.H_UNITS
-                    )
+        if options.cross:
+            plot = plots.CrossSemivariogram(
+                        a=workflow_config.CROSS_RANGE,
+                        omega=workflow_config.CROSS_SILL,
+                        nugget=workflow_config.CROSS_NUGGET,
+                        model_name=model.name,
+                        model_lag=plot_model['h'],
+                        model_semivariance=plot_model['semivariance'],
+                        raw_df=bins_df,
+                        display_primary_var=workflow_config.PRIMARY_DISPLAY_NAME,
+                        display_secondary_var=workflow_config.SECONDARY_DISPLAY_NAME,
+                        imname=workflow_config.IM_TAG,
+                        h_units=workflow_config.H_UNITS
+                        )
+        else:
+            plot = plots.Semivariogram(
+                        a=workflow_config.RANGE,
+                        omega=workflow_config.SILL,
+                        nugget=workflow_config.NUGGET,
+                        model_name=model.name,
+                        model_lag=plot_model['h'],
+                        model_semivariance=plot_model['semivariance'],
+                        raw_df=bins_df,
+                        display_var_name=workflow_config.PRIMARY_DISPLAY_NAME,
+                        imname=workflow_config.IM_TAG,
+                        h_units=workflow_config.H_UNITS
+                        )
 
         plot.show_and_save()
 
