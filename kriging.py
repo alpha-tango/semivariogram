@@ -32,6 +32,13 @@ def main():
         Test with a small subset of data.
         """)
 
+    parser.add_argument("--validation", action=argparse.BooleanOptionalAction,
+        help="""
+        Validate the results of Kriging with a holdout set of known sample points
+        that you define in the config file.
+        """)
+
+
     try:
         options = parser.parse_args()
     except:
@@ -49,7 +56,6 @@ def main():
 
     if options.test:
         print(raw_df)
-        return 1
 
     # get the model
     # fit the model to the data
@@ -63,10 +69,11 @@ def main():
     except AttributeError:
         # create distance matrix using scipy function
         # it uses minkowski distance, p=2 is same as Euclidean distance
-        h_matrix = distance_matrix(sample_coords, sample_coords, p=2)  # checked manually
+        h_matrix = distance_matrix(sample_coords, sample_coords, p=2)
 
     # calculate semivariance from model and distance matrix
-    semivariance_knownpts_matrix = model.fit_h(h_matrix)  # checked manually
+
+    semivariance_knownpts_matrix = model.fit_h(h_matrix)
 
     # add the ones and zero as described in class (due to Lagrange Param)
     b = np.ones((len(sample_coords),1)) * -1
@@ -79,28 +86,36 @@ def main():
         print("C - semivariance matrix")
         print(C_semivariance_matrix)
 
-    # construct a target grid
-    # get min and max coords from sample data so we know where to center our grid
-    min_x = raw_df['x'].min()
-    min_y = raw_df['y'].min()
-    max_x = raw_df['x'].max()
-    max_y = raw_df['y'].max()
-
-    # lets add a tolerance around the edges
-    x_tol = (max_x - min_x) * .1
-    y_tol = (max_y - min_y) * .1
-
-    # now make a n_pts x n_pts grid around the sample points
-    n_pts = 100
-    xs = np.linspace(min_x - x_tol, max_x + x_tol, n_pts)
-    ys = np.linspace(min_y - y_tol, max_y + y_tol, n_pts)
-    target_coords = [[i,j] for i in xs for j in ys]
-
     # calculate the distances between the sample points and the target point
     if options.test:
         target_coords = workflow_config.TEST_COORDS
         print(target_coords)
 
+    elif options.validation:
+        validation_data = workflow_config.validation_data()
+        target_x = validation_data['x']
+        target_y = validation_data['y']
+        target_coords = np.asarray(validation_data[['x', 'y']])
+        print(f"Found {len(target_coords)} validation locations to estimate.")
+        print(target_coords)
+
+    else:
+        # construct a target grid
+        # get min and max coords from sample data so we know where to center our grid
+        min_x = raw_df['x'].min()
+        min_y = raw_df['y'].min()
+        max_x = raw_df['x'].max()
+        max_y = raw_df['y'].max()
+
+        # lets add a tolerance around the edges
+        x_tol = (max_x - min_x) * .1
+        y_tol = (max_y - min_y) * .1
+
+        # now make a n_pts x n_pts grid around the sample points
+        n_pts = 100
+        xs = np.linspace(min_x - x_tol, max_x + x_tol, n_pts)
+        ys = np.linspace(min_y - y_tol, max_y + y_tol, n_pts)
+        target_coords = [[i,j] for i in xs for j in ys]
 
     try:
         target_vector = workflow_config.distance_matrix(sample_coords, target_coords)
@@ -146,13 +161,6 @@ def main():
 
     # use matrix multiplication to calculate estimated value
     estimates = np.matmul(actual_values_col, W_weights_matrix)
-    try: 
-        estimates = workflow_config.transform(estimates)
-        print("De-transformed estimates")
-    except AttributeError:
-        print("No transform found")
-        pass
-
     if options.test:
         print("estimate matrix", estimates.shape)
         print(estimates)
@@ -198,32 +206,42 @@ def main():
     data = pd.DataFrame(target_coords, columns=['x', 'y'])
     data['estimate'] = estimates[0]
     data['error_variance'] = error_variances
-    
-    # create pivoted dataframe for plotting purposes
-    estimate_df = data.pivot(index='y', columns='x', values='estimate')
-    error_df = data.pivot(index='y', columns='x', values='error_variance')
-    x_df = data.pivot(index='y', columns='x', values='x')
-    y_df = data.pivot(index='y', columns='x', values='y')
-    
-    make a colormap plot of the estimates
-    fig, ax = plt.subplots()
-    a = ax.pcolormesh(x_df, y_df, estimate_df, vmin=estimates.min(), vmax=estimates.max())
 
-    plt.colorbar(a)  # show the color bar to the right
-    ax.scatter(raw_df['x'], raw_df['y'],color='red', label="Sampled Point")  # plot known points on top
-    plt.title(f"Estimated values ({workflow_config.UNITS}) for {workflow_config.PRIMARY_VAR_NAME}, range = {workflow_config.RANGE} {workflow_config.H_UNITS}")
-    plt.savefig(f'images/{workflow_config.IM_TAG}_kriged_values.png')
+    if options.validation:
+        validation_data['estimate'] = estimates[0]
+        validation_data['difference'] = validation_data['estimate'] - validation_data[workflow_config.PRIMARY_VAR_NAME]
+        print(validation_data)
+        print(np.mean(validation_data['difference']))
+        print(np.std(validation_data['difference']))
+        print(max(validation_data['difference']))
+        workflow_config.kriging_validation_plots(raw_df, validation_data)
 
-    # make a colormap plot of the error variances
-    fig, ax = plt.subplots()
-    a = ax.pcolormesh(x_df, y_df, error_df, vmin=error_variances.min(), vmax=error_variances.max())
-    plt.colorbar(a)  # show color bar
-    ax.scatter(raw_df['x'], raw_df['y'],color='red', label="Sampled Point")  # plot known points on top
+    else:
+        # create pivoted dataframe for plotting purposes
+        estimate_df = data.pivot(index='y', columns='x', values='estimate')
+        error_df = data.pivot(index='y', columns='x', values='error_variance')
+        x_df = data.pivot(index='y', columns='x', values='x')
+        y_df = data.pivot(index='y', columns='x', values='y')
+        
+        # make a colormap plot of the estimates
+        fig, ax = plt.subplots()
+        a = ax.pcolormesh(x_df, y_df, estimate_df, vmin=estimates.min(), vmax=estimates.max())
 
-    plt.title(f"Error variance for {workflow_config.PRIMARY_VAR_NAME}, range = {workflow_config.RANGE} {workflow_config.H_UNITS}")
-    plt.savefig(f'images/{workflow_config.IM_TAG}_kriged_error.png')
+        plt.colorbar(a)  # show the color bar to the right
+        ax.scatter(raw_df['x'], raw_df['y'],color='red', label="Sampled Point")  # plot known points on top
+        plt.title(f"Estimated values ({workflow_config.UNITS}) for {workflow_config.PRIMARY_VAR_NAME}, range = {workflow_config.RANGE} {workflow_config.H_UNITS}")
+        plt.savefig(f'images/{workflow_config.IM_TAG}_kriged_values.png')
 
-    fig, ax = plt.subplots()
+        # make a colormap plot of the error variances
+        fig, ax = plt.subplots()
+        a = ax.pcolormesh(x_df, y_df, error_df, vmin=error_variances.min(), vmax=error_variances.max())
+        plt.colorbar(a)  # show color bar
+        ax.scatter(raw_df['x'], raw_df['y'],color='red', label="Sampled Point")  # plot known points on top
+
+        plt.title(f"Error variance for {workflow_config.PRIMARY_VAR_NAME}, range = {workflow_config.RANGE} {workflow_config.H_UNITS}")
+        plt.savefig(f'images/{workflow_config.IM_TAG}_kriged_error.png')
+
+        fig, ax = plt.subplots()
 
     return 0
 
