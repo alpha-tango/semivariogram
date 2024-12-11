@@ -11,10 +11,9 @@ import numpy as np
 # image settings and functions
 ######################################
 
-IM_TAG = 'log_pfaa'
+IM_TAG = 'log_toc'
 H_UNITS = 'km'
-PRIMARY_DISPLAY_NAME = 'log(PFAA) + 10'
-SECONDARY_DISPLAY_NAME = 'log(TOC) + 10'
+VAR_DISPLAY_NAME = 'log(TOC) + 10'
 UNITS = 'ng/kg'
 
 ######################################
@@ -55,9 +54,7 @@ def raw_data():
         CONCAT(data.sample_id, sub_id) AS sample_id,
         property_latitude AS y,
         property_longitude AS x,
-        sum_PFAA as sum_PFAA,
-        LOG(sum_PFAA) + 10 AS primary,
-        LOG(toc) + 10 AS secondary,
+        log(toc) + 10 AS primary,
         CASE WHEN data.rain IS NOT NULL THEN TRUE
         ELSE FALSE END AS rain,
         sampling_date,
@@ -79,32 +76,11 @@ BIN_METHOD = 'equal_points'
 # Model
 #######################################
 
-RANGE = 10  # set it higher to get some result
-SILL = .06
-NUGGET = .01
+RANGE = 30  # set it higher to get some result
+SILL = .005
+NUGGET = 0
 
 MODEL = models.ExponentialModel(fit_range=RANGE, sill=SILL, nugget=NUGGET)
-
-CROSS_RANGE = 5
-CROSS_SILL = 2.9
-CROSS_NUGGET = 0
-
-CROSS_MODEL = models.ExponentialModel(fit_range=CROSS_RANGE, sill=CROSS_SILL, nugget=CROSS_NUGGET)
-
-
-########################################
-# Kriging 
-########################################
-
-TEST_COORDS = [
-[-72.0, 44.0],
-[-73.0, 45.0],
-[-71.5, 42.5],
-[-71.5,45.0]
-]
-
-def transform(c):
-    return np.exp(c - 10)
 
 
 

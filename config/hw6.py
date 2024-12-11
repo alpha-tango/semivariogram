@@ -2,6 +2,8 @@
 Config settings for berea dataset
 """
 
+import scripts.models as models
+
 ######################################
 # image settings and functions
 ######################################
@@ -37,6 +39,25 @@ def raw_data():
         ORDER BY id ASC
         """
     return duckdb.sql(sample_select).df()
+
+######################################
+# Model
+######################################
+
+RANGE = 10
+SILL = 15000
+
+model_class = models.get_model('hw6')
+MODEL = model_class(fit_range=RANGE, sill=SILL)
+
+######################################
+# Kriging
+######################################
+
+# use these coordinates for testing
+TEST_COORDS = [[7,14]]
+# TEST_COORDS = [[5,5], [7, 14], [100,100], [1000,1000]]
+# TEST_COORDS = [[7, 14], [1,2], [21,5], [24,24], [15,15], [10,21], [100,100], [1000,1000]]
 
 
 ######################################

@@ -7,6 +7,7 @@ Config settings for berea dataset
 ######################################
 
 IM_TAG = 'berea_test'
+H_UNITS = 'mm'
 
 def custom_raw_plots(raw_df):
     import matplotlib.pyplot as plt
